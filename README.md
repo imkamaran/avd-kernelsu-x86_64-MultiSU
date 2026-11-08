@@ -173,8 +173,10 @@ Notes:
 - On the 6.x kernels (A15, A16, A17) `finasu` applies its own
   [`finasu-x86_64-kcfi-icall-trampoline.patch`](patches/finasu-x86_64-kcfi-icall-trampoline.patch),
   the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)). The KernelSU
-  patches in [`patches/`](patches/) target code paths FinaSU has restructured, so they are not used;
-  A13 and A14 need no patch.
+  patches in [`patches/`](patches/) target code paths FinaSU has restructured, so they are not used.
+  Every target also gets
+  [`finasu-preinit-runner-16k-pages.patch`](patches/finasu-preinit-runner-16k-pages.patch), without
+  which 16 KB page-size images (API 37.1, 37.2) boot-loop.
 - FinaSU's SUSFS and other hiding features are kernel-capability-gated and share the x86_64
   syscall-hook limitations described above for the older AVD kernels (A13/A14) and the 16 KB images.
 
@@ -243,6 +245,13 @@ applies in reverse and is skipped.
   23 unchecked calls through it: the syscall-table chaining in `hook/syscall_event_bridge.c` and the
   x86_64 dispatcher, the netisolate wrappers, the kallsyms iterators in `infra/symbol_resolver.c`,
   the SELinux hide hooks, and the NoMount mount-view filter's saved `show` / `open` ops.
+- `finasu-preinit-runner-16k-pages.patch` (`finasu`, all targets; not upstream yet): FinaSU embeds a
+  small "preinit" runner in `kernelsu.ko` and has init exec it at the switch to second-stage init.
+  The runner was linked with the default 4 KB segment alignment, so on 16 KB page-size images
+  (`page_shift=14`) the exec fails with `-EINVAL` after its point of no return, PID 1 dies
+  (`Attempted to kill init! exitcode=0x0000000b`) and the AVD boot-loops. The patch links it with
+  `-z max-page-size=16384`, which also works on 4 KB kernels; `build-lkm.sh` now fails the build
+  when the runner has a LOAD segment aligned to less than 16 KB.
 
 ## Adding an AVD kernel
 

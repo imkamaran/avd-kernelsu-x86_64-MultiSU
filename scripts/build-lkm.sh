@@ -77,6 +77,19 @@ make -C "$KDIR" M="$PWD" src="$PWD" -j"$(nproc)" modules \
   CONFIG_KSU=m CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y > "$OUT/module.log" 2>&1 \
   || { grep -nE 'error' "$OUT/module.log" | head -20; exit 1; }
 grep -E 'version' "$OUT/module.log" | sort -u | head -3
+# FinaSU embeds a user-space preinit runner that init execs at boot. On 16 KB page-size
+# images (page_shift=14) a 4 KB-aligned ELF fails to map after exec's point of no return,
+# so PID 1 dies and the AVD boot-loops. Require every LOAD segment to be 16 KB aligned.
+if [ -f preinit/runner.elf ]; then
+  RE=$(command -v llvm-readelf || command -v readelf || true)
+  if [ -z "$RE" ]; then
+    echo "!! no readelf: cannot check preinit/runner.elf alignment"; exit 1
+  fi
+  for a in $("$RE" -lW preinit/runner.elf | awk '$1 == "LOAD" { print $NF }'); do
+    [ $((a)) -ge 16384 ] || { echo "!! preinit/runner.elf LOAD align $a < 16 KB: boot-loops on 16 KB images"; exit 1; }
+  done
+  echo "preinit runner: LOAD segments 16 KB aligned"
+fi
 llvm-strip -d kernelsu.ko
 cp kernelsu.ko "$OUT/kernelsu.ko"
 VERMAGIC=$(modinfo -F vermagic "$OUT/kernelsu.ko" 2>/dev/null || strings kernelsu.ko | grep -m1 '^vermagic=' | cut -d= -f2)

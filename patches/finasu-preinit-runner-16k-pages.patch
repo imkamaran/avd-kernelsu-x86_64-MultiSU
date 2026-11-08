@@ -1,0 +1,13 @@
+diff --git a/kernel/Kbuild b/kernel/Kbuild
+index f4fa71a..dbe346b 100644
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -140,7 +140,7 @@ KSU_RUNNER_CFLAGS := $(CLANG_FLAGS) -std=gnu11 -Os -Wall \
+ 
+ quiet_cmd_ksu_runner = RUNNER  $@
+       cmd_ksu_runner = $(CC) $(KSU_RUNNER_CFLAGS) -c -o $@.o $< && \
+-		$(LD) -static -nostdlib -e _start --gc-sections -s -o $@ $@.o && \
++		$(LD) -static -nostdlib -e _start --gc-sections -s -z max-page-size=16384 -o $@ $@.o && \
+ 		rm -f $@.o
+ 
+ $(obj)/preinit/runner.elf: $(KSU_KERNEL_DIR)/preinit/runner/runner.c \
