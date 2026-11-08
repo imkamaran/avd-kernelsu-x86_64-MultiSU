@@ -63,7 +63,9 @@
           "x86_64-kcfi-icall-trampoline.patch"
         ],
         "kernelsu-next-susfs": [],
-        "finasu": []
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch"
+        ]
       }
     },
     {
@@ -82,7 +84,9 @@
           "x86_64-kcfi-icall-trampoline.patch"
         ],
         "kernelsu-next-susfs": [],
-        "finasu": []
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch"
+        ]
       }
     },
     {
@@ -101,7 +105,9 @@
           "x86_64-kcfi-icall-trampoline.patch"
         ],
         "kernelsu-next-susfs": [],
-        "finasu": []
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch"
+        ]
       }
     },
     {
@@ -120,7 +126,9 @@
           "x86_64-kcfi-icall-trampoline.patch"
         ],
         "kernelsu-next-susfs": [],
-        "finasu": []
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch"
+        ]
       }
     },
     {
@@ -139,7 +147,9 @@
           "x86_64-kcfi-icall-trampoline.patch"
         ],
         "kernelsu-next-susfs": [],
-        "finasu": []
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch"
+        ]
       }
     }
   ]

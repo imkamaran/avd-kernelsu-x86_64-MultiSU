@@ -170,11 +170,11 @@ Notes:
 
 - The release tags its LKMs `finasu-v<version>` and attaches `ksud` / `ksuinit` built from the same
   FinaSU tag; the manager APK comes from FinaSU's own release, not from this repository.
-- `finasu` starts with **no kernel patches** in `.github/avd-targets.json`: FinaSU carries its own
-  x86_64 hook mechanism, and the KernelSU-specific patches in [`patches/`](patches/) target code paths
-  FinaSU has restructured. CI's `x86_icall_windows.py` check (6.2+ kernels) and a boot-test are what
-  confirm a target; if a kernel needs a fix, port it into `patches/` and add it to the `finasu` list
-  for that target, the same way the other variants do.
+- On the 6.x kernels (A15, A16, A17) `finasu` applies its own
+  [`finasu-x86_64-kcfi-icall-trampoline.patch`](patches/finasu-x86_64-kcfi-icall-trampoline.patch),
+  the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)). The KernelSU
+  patches in [`patches/`](patches/) target code paths FinaSU has restructured, so they are not used;
+  A13 and A14 need no patch.
 - FinaSU's SUSFS and other hiding features are kernel-capability-gated and share the x86_64
   syscall-hook limitations described above for the older AVD kernels (A13/A14) and the 16 KB images.
 
@@ -238,6 +238,11 @@ applies in reverse and is skipped.
   loaded: in `ksu_hook_execve_common()` an unlucky load (estimated at most 1 in 32768) would corrupt the
   code before the call to the original `execve`. The patch routes every unchecked call through one
   `noinline __nocfi` trampoline, `ksu_icall8()`, whose call has fixed bytes in front of it.
+- `finasu-x86_64-kcfi-icall-trampoline.patch` (`finasu` on A15, A16, A17; not upstream yet): the same
+  `ksu_icall8()` trampoline for FinaSU, whose kernel tree is laid out differently. It routes FinaSU's
+  23 unchecked calls through it: the syscall-table chaining in `hook/syscall_event_bridge.c` and the
+  x86_64 dispatcher, the netisolate wrappers, the kallsyms iterators in `infra/symbol_resolver.c`,
+  the SELinux hide hooks, and the NoMount mount-view filter's saved `show` / `open` ops.
 
 ## Adding an AVD kernel
 
