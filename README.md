@@ -141,6 +141,15 @@ check-root.bat Pixel_7 finasu v1.5.0
 It needs Python on `PATH`, `avd-ksu.py` next to it (or one folder up, as in a clone of this
 repository) and the SDK in `%LOCALAPPDATA%\Android\Sdk` (or `ANDROID_SDK_ROOT`).
 
+### Web GUI (`GUI/`)
+
+Prefer clicking to typing? [`GUI/`](GUI/) is a local web control panel on top of `avd-ksu.py`
+(Python standard library only): it lists your AVDs and their kernels, lets you pick the root
+solution and version, patches (separately or in place), boots, checks root, installs the manager
+APK and shows every command's output. Start it with `GUI\start-gui.bat` (Windows),
+`./GUI/start-gui.sh` or `python GUI/server.py --open`, then open http://127.0.0.1:8765/.
+See [GUI/README.md](GUI/README.md).
+
 ### Preview: KernelSU-Next + SUSFS (`kernelsu-next-susfs`)
 
 KernelSU-Next with the x86_64 port of the SUSFS guard LKM (`susfs_guard_lkm.ko`). It is **not an upstream

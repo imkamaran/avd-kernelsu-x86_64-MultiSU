@@ -1,0 +1,4 @@
+# Made at runtime by server.py: patched ramdisks, uploads, job and emulator logs.
+out/
+logs/
+__pycache__/

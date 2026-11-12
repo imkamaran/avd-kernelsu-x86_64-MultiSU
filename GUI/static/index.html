@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="gui-token" content="__GUI_TOKEN__">
+  <title>AVD Root Panel</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">#</span>
+      <div>
+        <h1>AVD Root Panel</h1>
+        <p class="sub">KernelSU · KernelSU-Next · FinaSU for Android Studio emulators</p>
+      </div>
+    </div>
+    <div class="env" id="env" aria-label="Environment"></div>
+  </header>
+
+  <main class="layout">
+    <!-- AVD list -->
+    <section class="card" id="avd-card" aria-labelledby="avd-h">
+      <div class="card-head">
+        <h2 id="avd-h">Virtual devices</h2>
+        <button class="btn ghost" id="refresh-avds" title="Re-read the AVDs and their system images">Refresh</button>
+      </div>
+      <div id="avd-list" class="avd-list"><p class="muted">Loading…</p></div>
+    </section>
+
+    <!-- Control panel -->
+    <section class="card" id="panel" aria-labelledby="panel-h">
+      <div class="card-head">
+        <h2 id="panel-h">Control panel</h2>
+        <span class="muted" id="panel-avd">Select an AVD</span>
+      </div>
+
+      <div id="panel-empty" class="empty">Pick a virtual device on the left to patch, boot and check it.</div>
+
+      <div id="panel-body" hidden>
+        <div id="avd-summary"></div>
+
+        <!-- 1. Patch -->
+        <fieldset class="step">
+          <legend><span class="num">1</span> Patch the ramdisk</legend>
+          <div class="grid2">
+            <label>Root solution
+              <select id="variant"></select>
+            </label>
+            <label>Version
+              <span class="row">
+                <select id="version"><option>Loading…</option></select>
+                <button class="btn ghost small" id="refresh-versions" title="Reload releases from GitHub">↻</button>
+              </span>
+            </label>
+          </div>
+          <p class="note" id="variant-note"></p>
+
+          <div class="modes" role="radiogroup" aria-label="Patch mode">
+            <label class="mode">
+              <input type="radio" name="mode" value="separate" checked>
+              <span><b>Separate ramdisk</b> (recommended) — writes a patched copy; the SDK stays stock. Boot it with
+                <i>Start</i> below.</span>
+            </label>
+            <label class="mode">
+              <input type="radio" name="mode" value="inplace">
+              <span><b>In place (persistent)</b> — replaces the system image's <code>ramdisk.img</code> (backup kept):
+                rooted even from Android Studio, for <u>every</u> AVD on that image.</span>
+            </label>
+          </div>
+
+          <div class="checks">
+            <label><input type="checkbox" id="allow-shell" checked> Allow <code>adb shell su</code> without asking</label>
+            <label><input type="checkbox" id="force"> Force (patch where root is known not to work)</label>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="do-patch">Patch</button>
+            <button class="btn" id="do-patch-boot" title="Separate ramdisk, then a cold boot with it">Patch &amp; boot</button>
+            <button class="btn ghost" id="do-status">Status</button>
+            <button class="btn ghost danger" id="do-restore" title="Put the stock SDK ramdisk back">Restore stock</button>
+          </div>
+          <p class="warn" id="patch-warn" hidden></p>
+        </fieldset>
+
+        <!-- 2. Run -->
+        <fieldset class="step">
+          <legend><span class="num">2</span> Run the emulator</legend>
+          <label>Ramdisk to boot
+            <select id="image"></select>
+          </label>
+          <div class="checks">
+            <label><input type="checkbox" id="cold" checked> Cold boot (ignore the Quick Boot snapshot)</label>
+            <label><input type="checkbox" id="klog" checked> Capture the kernel log</label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="do-start">Start</button>
+            <button class="btn ghost danger" id="do-stop">Stop</button>
+            <button class="btn ghost" id="do-klog">Kernel log</button>
+            <button class="btn ghost danger small" id="do-del-image" title="Delete the selected patched ramdisk">Delete image</button>
+          </div>
+          <p class="note">Close the emulator window (or <i>Stop</i>) instead of rebooting inside Android.</p>
+        </fieldset>
+
+        <!-- 3. Device -->
+        <fieldset class="step">
+          <legend><span class="num">3</span> On the running AVD</legend>
+          <p class="muted" id="device-state">Not running.</p>
+          <div class="actions">
+            <button class="btn primary" id="do-check">Check root</button>
+            <label class="btn file" title="Install a manager APK with adb install -r">
+              Install APK… <input type="file" id="apk" accept=".apk" hidden>
+            </label>
+            <a class="btn ghost" id="manager-link" target="_blank" rel="noopener noreferrer">Get the manager</a>
+          </div>
+          <div class="actions" id="susfs-actions" hidden>
+            <button class="btn" id="do-susfs">Install SUSFS module</button>
+            <button class="btn ghost danger" id="do-susfs-remove">Remove SUSFS</button>
+          </div>
+          <div id="check-result"></div>
+          <ol class="howto">
+            <li>Patch and boot (cold).</li>
+            <li>Install and <b>open</b> the manager of the same version.</li>
+            <li>Stop the emulator, start it again the same way, then <i>Check root</i>.</li>
+          </ol>
+        </fieldset>
+      </div>
+    </section>
+
+    <!-- Console -->
+    <section class="card console-card" aria-labelledby="console-h">
+      <div class="card-head">
+        <h2 id="console-h">Activity</h2>
+        <div class="row">
+          <select id="job-select" aria-label="Job"></select>
+          <button class="btn ghost small" id="copy-log">Copy</button>
+        </div>
+      </div>
+      <div id="job-head" class="job-head muted">No actions yet.</div>
+      <pre id="console" class="console" aria-live="polite"></pre>
+    </section>
+
+    <!-- Settings -->
+    <details class="card settings">
+      <summary><h2>Settings &amp; paths</h2></summary>
+      <label>Release repository override (blank = default per variant)
+        <input id="repo" placeholder="owner/repo" spellcheck="false" autocomplete="off">
+      </label>
+      <div id="paths" class="paths"></div>
+    </details>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="klog-dialog">
+    <div class="card-head">
+      <h2>Kernel log <span id="klog-avd" class="muted"></span></h2>
+      <div class="row">
+        <label class="small"><input type="checkbox" id="klog-markers" checked> KernelSU lines only</label>
+        <button class="btn ghost small" id="klog-refresh">↻</button>
+        <button class="btn small" id="klog-close">Close</button>
+      </div>
+    </div>
+    <div id="klog-flags" class="flags"></div>
+    <pre id="klog-text" class="console tall"></pre>
+  </dialog>
+  <script src="/app.js"></script>
+</body>
+</html>
