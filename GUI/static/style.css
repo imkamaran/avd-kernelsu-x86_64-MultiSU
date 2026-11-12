@@ -117,7 +117,17 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
   padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / 25%); font-size: 13px; z-index: 5; }
 .toast.bad { background: var(--bad); color: #fff; }
 
+.footer { max-width: 1500px; margin: 0 auto; padding: 4px 20px 28px; display: flex; justify-content: space-between;
+  align-items: center; gap: 12px 20px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.footer p { margin: 0; }
+.socials { display: flex; gap: 8px; flex-wrap: wrap; }
+.social { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--card); color: var(--ink); text-decoration: none; font-size: 12.5px; }
+.social:hover { border-color: var(--accent); color: var(--accent); }
+.social svg { flex: none; }
+
 @media (max-width: 900px) {
+  .footer { padding: 4px 12px 24px; }
   .layout { grid-template-columns: 1fr; padding: 12px; }
   #avd-card { grid-row: auto; }
   .console-card, .settings { grid-column: auto; }
