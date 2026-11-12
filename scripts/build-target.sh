@@ -21,8 +21,10 @@ read -r -a PATCHES <<< "${!PVAR}"
 
 echo "== $TARGET / $VARIANT @ $KSU_REF in $DDK_IMAGE (patches: ${PATCHES[*]:-none})"
 SUSFS=0; [ "$VARIANT" = kernelsu-next-susfs ] && SUSFS=1
+# KSU_MAKE_ARGS (optional): extra make variables for the module build, e.g. finasu's trusted
+# manager signature (KSU_EXPECTED_SIZE2=... KSU_EXPECTED_HASH2=...), set by build-lkm.yml.
 docker run --rm \
-  -e KERNEL_RELEASE="$KERNEL_RELEASE" -e BUILD_SUSFS="$SUSFS" \
+  -e KERNEL_RELEASE="$KERNEL_RELEASE" -e BUILD_SUSFS="$SUSFS" -e KSU_MAKE_ARGS="${KSU_MAKE_ARGS:-}" \
   -v "$(winpath "$TDIR"):/in" \
   -v "$(winpath "$KSU_REPO"):/ksu:ro" \
   -v "$(winpath "$ROOT/patches"):/patches:ro" \

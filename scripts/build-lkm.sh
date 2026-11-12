@@ -73,10 +73,14 @@ for p in ${PATCHES[@]+"${PATCHES[@]}"}; do
 done
 
 cd kernel
+# KSU_MAKE_ARGS: extra make variables, word-split on purpose (values contain no spaces).
+read -r -a EXTRA_MAKE <<< "${KSU_MAKE_ARGS:-}"
+[ ${#EXTRA_MAKE[@]} -eq 0 ] || echo "== extra make args: ${EXTRA_MAKE[*]}"
 make -C "$KDIR" M="$PWD" src="$PWD" -j"$(nproc)" modules \
-  CONFIG_KSU=m CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y > "$OUT/module.log" 2>&1 \
+  CONFIG_KSU=m CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=y ${EXTRA_MAKE[@]+"${EXTRA_MAKE[@]}"} > "$OUT/module.log" 2>&1 \
   || { grep -nE 'error' "$OUT/module.log" | head -20; exit 1; }
 grep -E 'version' "$OUT/module.log" | sort -u | head -3
+grep -E 'Manager (signature|second signature)' "$OUT/module.log" | sort -u || true
 # FinaSU embeds a user-space preinit runner that init execs at boot. On 16 KB page-size
 # images (page_shift=14) a 4 KB-aligned ELF fails to map after exec's point of no return,
 # so PID 1 dies and the AVD boot-loops. Require every LOAD segment to be 16 KB aligned.

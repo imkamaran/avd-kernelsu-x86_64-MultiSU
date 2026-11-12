@@ -170,6 +170,12 @@ Notes:
 
 - The release tags its LKMs `finasu-v<version>` and attaches `ksud` / `ksuinit` built from the same
   FinaSU tag; the manager APK comes from FinaSU's own release, not from this repository.
+- The module trusts the **official FinaSU manager** the way FinaSU's own builds do: CI reads the
+  signing certificate of the manager APK in FinaSU's release of the same tag
+  ([`scripts/apk_cert.py`](scripts/apk_cert.py), checked against `apksigner`) and builds it in as the
+  second trusted signature (`KSU_EXPECTED_SIZE2` / `KSU_EXPECTED_HASH2`). Without it the module only
+  trusts the upstream KernelSU key, so `su` works but the FinaSU manager shows *Not installed*.
+  A manager you build and sign yourself is not trusted.
 - On the 6.x kernels (A15, A16, A17) `finasu` applies its own
   [`finasu-x86_64-kcfi-icall-trampoline.patch`](patches/finasu-x86_64-kcfi-icall-trampoline.patch),
   the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)). The KernelSU

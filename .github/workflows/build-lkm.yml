@@ -30,6 +30,7 @@ on:
       - scripts/build-target.sh
       - scripts/fetch_kernel_source.py
       - scripts/x86_icall_windows.py
+      - scripts/apk_cert.py
   workflow_call:
     inputs:
       variant: { type: string, required: true }
@@ -87,6 +88,39 @@ jobs:
           path: ${{ runner.temp }}/work/${{ matrix.target.id }}/common-*.tar.gz
           key: kernel-src-${{ matrix.target.id }}-${{ hashFiles('.github/avd-targets.json') }}
           restore-keys: kernel-src-${{ matrix.target.id }}-
+      # FinaSU's own kernel modules trust its manager through the second signature slot, which
+      # FinaSU's release CI fills from its private keystore. The certificate itself is public:
+      # take it from the official manager APK of the same release, as that release build does.
+      # Without it the module only trusts the upstream KernelSU key and the FinaSU manager shows
+      # "Not installed" even though root works.
+      - name: Trusted manager signature (finasu)
+        if: (inputs.variant || 'kernelsu') == 'finasu'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UP: ${{ needs.setup.outputs.upstream }}
+          REF: ${{ inputs.ref }}
+        run: |
+          mgr="$RUNNER_TEMP/manager"; mkdir -p "$mgr"
+          if ! gh release download "$REF" -R "$UP" -p '*.apk' -D "$mgr"; then
+            echo "::warning::$UP has no release $REF; taking the manager signature from its latest release"
+            gh release download -R "$UP" -p '*.apk' -D "$mgr"
+          fi
+          ls -la "$mgr"
+          sig=$(python3 scripts/apk_cert.py "$mgr"/*.apk)
+          read -r size hash <<< "$sig"
+          # Cross-check with Google's apksigner where the runner image has it.
+          apksigner=$(ls "${ANDROID_HOME:-/nonexistent}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$apksigner" ]; then
+            for apk in "$mgr"/*.apk; do
+              want=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
+              [ "$want" = "$hash" ] || { echo "::error::apksigner reports '$want' for $(basename "$apk"), apk_cert.py $hash"; exit 1; }
+            done
+            echo "apksigner agrees: $hash"
+          else
+            echo "::warning::apksigner not found; skipped the cross-check"
+          fi
+          echo "trusted FinaSU manager certificate: size=$size sha256=$hash"
+          echo "KSU_MAKE_ARGS=KSU_EXPECTED_SIZE2=$size KSU_EXPECTED_HASH2=$hash KSU_SECOND_SIGNATURE_RELEASE=1" >> "$GITHUB_ENV"
       - name: Build kernelsu.ko
         run: |
           bash scripts/build-target.sh "${{ matrix.target.id }}" "${{ inputs.variant || 'kernelsu' }}" \
