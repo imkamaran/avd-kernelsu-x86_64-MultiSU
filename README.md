@@ -150,6 +150,15 @@ APK and shows every command's output. Start it with `GUI\start-gui.bat` (Windows
 `./GUI/start-gui.sh` or `python GUI/server.py --open`, then open http://127.0.0.1:8765/.
 See [GUI/README.md](GUI/README.md).
 
+![AVD Root Panel: AVD list, patch, run and root check](docs/screenshots/gui-overview.png)
+
+| Root check and live command output | Kernel log | Dark mode |
+| :---: | :---: | :---: |
+| [![Root check](docs/screenshots/gui-root-check.png)](docs/screenshots/gui-root-check.png) | [![Kernel log](docs/screenshots/gui-kernel-log.png)](docs/screenshots/gui-kernel-log.png) | [![Dark mode](docs/screenshots/gui-dark.png)](docs/screenshots/gui-dark.png) |
+
+<sub>Screenshots from a demo setup with three example AVDs: a supported one (Pixel 7, API 37.0), a 16 KB
+image and one whose kernel has no module.</sub>
+
 ### Preview: KernelSU-Next + SUSFS (`kernelsu-next-susfs`)
 
 KernelSU-Next with the x86_64 port of the SUSFS guard LKM (`susfs_guard_lkm.ko`). It is **not an upstream

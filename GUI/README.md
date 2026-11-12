@@ -8,6 +8,11 @@ The GUI never replaces `avd-ksu.py`. It imports it read-only to list AVDs and ke
 as a subprocess for every patch, status, restore and SUSFS action, so it does exactly what the command
 line does. The full output of every action is shown in the page and saved under `GUI/logs/`.
 
+![AVD Root Panel: AVD list, patch, run and root check](../docs/screenshots/gui-overview.png)
+
+<sub>Screenshots from a demo setup with three example AVDs: a supported one (Pixel 7, API 37.0), a 16 KB
+image and one whose kernel has no module.</sub>
+
 ## Start
 
 Requires Python 3.8+, the Android SDK (Emulator and Platform-Tools) and a clone or download of this
@@ -37,6 +42,18 @@ KernelSU-Next on 16 KB images, and patching in place (which roots every AVD on t
 
 Typical first run: select the AVD → choose the variant and version → **Patch & boot** → install and
 open the manager of the same version (*Install APK…*) → **Stop** → **Start** again → **Check root**.
+
+**Check root** and the **Activity** panel with the live output of the patch:
+
+![Root check and activity](../docs/screenshots/gui-root-check.png)
+
+**Kernel log** of an AVD started from the page, filtered to the KernelSU lines:
+
+![Kernel log](../docs/screenshots/gui-kernel-log.png)
+
+It follows the system's light or dark theme:
+
+![Dark mode](../docs/screenshots/gui-dark.png)
 
 ## Security
 
