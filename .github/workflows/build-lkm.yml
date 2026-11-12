@@ -112,8 +112,12 @@ jobs:
           apksigner=$(ls "${ANDROID_HOME:-/nonexistent}"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1 || true)
           if [ -n "$apksigner" ]; then
             for apk in "$mgr"/*.apk; do
-              want=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
-              [ "$want" = "$hash" ] || { echo "::error::apksigner reports '$want' for $(basename "$apk"), apk_cert.py $hash"; exit 1; }
+              # The certificate lines vary between versions ("Signer #1 ...", "Signer (minSdkVersion=..)
+              # ..."), so require our digest among the certificate digests apksigner lists.
+              out=$("$apksigner" verify -v --print-certs "$apk" 2>&1 | grep -v '^WARNING' || true)
+              echo "$out"
+              grep -qi "certificate SHA-256 digest: $hash" <<< "$out" \
+                || { echo "::error::apksigner does not list $hash as a certificate of $(basename "$apk")"; exit 1; }
             done
             echo "apksigner agrees: $hash"
           else
