@@ -48,19 +48,23 @@ from the [latest release](../../releases/latest) (every release attaches it), or
 
 ```sh
 # macOS / Linux
-curl -LO https://github.com/leemikepop/avd-kernelsu-x86_64/releases/latest/download/avd-ksu.py
+curl -LO https://github.com/imkamaran/avd-kernelsu-x86_64-MultiSU/releases/latest/download/avd-ksu.py
 ```
 
 ```powershell
 # Windows (PowerShell)
-Invoke-WebRequest https://github.com/leemikepop/avd-kernelsu-x86_64/releases/latest/download/avd-ksu.py -OutFile avd-ksu.py
+Invoke-WebRequest https://github.com/imkamaran/avd-kernelsu-x86_64-MultiSU/releases/latest/download/avd-ksu.py -OutFile avd-ksu.py
 ```
 
 On first use it downloads the `kernelsu.ko` for your AVD's kernel and the `ksud` / `ksuinit` binaries
 for your host from this repository's [Releases](../../releases) (verified against `SHA256SUMS`) and
 caches them in `~/.cache/avd-ksu` (override with `AVD_KSU_CACHE`). Without `--version` it uses the
-newest stable release of the chosen variant: `kernelsu-vX.Y.Z` or `kernelsu-next-vX.Y.Z` (for the
-`kernelsu-next-susfs` preview, which only has prereleases, the newest prerelease).
+newest stable release of the chosen variant: `kernelsu-vX.Y.Z`, `kernelsu-next-vX.Y.Z` or
+`finasu-vX.Y.Z` (for the `kernelsu-next-susfs` preview, which only has prereleases, the newest
+prerelease). The preview is built from the upstream owner's KernelSU-Next fork, so `avd-ksu.py` takes
+its releases from the upstream repository,
+[leemikepop/avd-kernelsu-x86_64](https://github.com/leemikepop/avd-kernelsu-x86_64/releases).
+`AVD_KSU_REPO=<owner>/<repo>` makes every variant use another repository's releases.
 
 ### Recommended: a separate patched ramdisk (`--out` + `-ramdisk`)
 
@@ -92,6 +96,12 @@ Tips:
   can crash or hang during an in-guest reboot (`adb reboot`, power menu), with or without root.
 - Always start the rooted AVD from the command line with `-ramdisk`; starting it from Android Studio's
   Device Manager boots the stock ramdisk (no root, nothing broken).
+- Keep `-no-snapshot-load` until root works. Without it a Quick Boot snapshot saved before patching
+  resumes the old, unrooted system and the patched ramdisk is never used, which looks like "nothing
+  happened".
+- The kernel version (Settings, `uname -r`) never changes: the stock kernel is kept and only
+  `kernelsu.ko` is added, which then hides itself from `/sys/module` and `lsmod`. Check root with
+  `adb shell su -c id` instead.
 - `adb shell su` is denied until you grant the Shell app in the manager. Add `--allow-shell` when
   patching to allow it from the start (convenient for testing).
 - Re-run `patch` after updating the system image in SDK Manager: a new image revision can come with a
@@ -104,6 +114,32 @@ Without `--out`, `patch` replaces the SDK `ramdisk.img` (original kept as `ramdi
 is rooted even when started from Android Studio, and so is every other AVD on that image.
 `python avd-ksu.py restore --avd <name>` puts the stock ramdisk back. A ramdisk already patched by
 rootAVD/Magisk is detected through its `ramdisk.img.backup`, which is used as the stock source.
+Cold boot once after patching (Device Manager > Cold Boot Now): an older Quick Boot snapshot would
+restore the unrooted state. Snapshots saved after that keep root.
+
+```sh
+python avd-ksu.py patch --avd API37.0-GAPPS --variant finasu --allow-shell   # no --out
+python avd-ksu.py status --avd API37.0-GAPPS                                  # "patched with finasu ..."
+```
+
+### Windows: `check-root.bat`
+
+[`scripts/check-root.bat`](scripts/check-root.bat) (also attached to every release) runs the whole
+check on Windows: it patches the AVD into a separate `patched-ramdisk.img` (the SDK is not touched),
+cold boots it with that ramdisk and no snapshot, waits for the boot (or a kernel panic), and writes
+`check-root.log` (patch output, kernel log lines from KernelSU and its preinit, `su -c id`, `ksud`,
+installed managers) and `boot-kernel.log` (the whole kernel log) next to itself. The emulator keeps
+running afterwards, so the manager can be installed right away.
+
+Double-click it (it lists your AVDs and asks which one; `finasu`, newest release), or pass the AVD,
+variant and version:
+
+```bat
+check-root.bat Pixel_7 finasu v1.5.0
+```
+
+It needs Python on `PATH`, `avd-ksu.py` next to it (or one folder up, as in a clone of this
+repository) and the SDK in `%LOCALAPPDATA%\Android\Sdk` (or `ANDROID_SDK_ROOT`).
 
 ### Preview: KernelSU-Next + SUSFS (`kernelsu-next-susfs`)
 
@@ -162,9 +198,20 @@ python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.5.0 --ou
 emulator -avd API35-GAPPS -ramdisk fina-API35.img -no-snapshot-load
 ```
 
-Then install the **FinaSU manager APK of the same version** (`v1.5.0`) from FinaSU's
-[releases](https://github.com/LyraVoid/FinaSU/releases), restart the emulator, and grant root from
-the manager as usual.
+Then install and open the **FinaSU manager APK of the same version** (`v1.5.0`) from FinaSU's
+[releases](https://github.com/LyraVoid/FinaSU/releases), close the emulator and start it again with the
+same command, and grant root from the manager as usual. On Windows,
+[`scripts/check-root.bat`](#windows-check-rootbat) does the patch, the cold boot and the checks in one
+go. To keep root without `-ramdisk`, patch the SDK ramdisk in place instead
+(see [Alternative](#alternative-patch-the-sdk-ramdisk-in-place)).
+
+Tested so far (`finasu-v1.5.0`):
+
+| AVD | Status |
+| :--- | :--- |
+| A17 (API 37.0, `google_apis_playstore`) | root works (`su -c id` gives `uid=0 ... context=u:r:ksu:s0`) and the FinaSU manager recognises the module |
+| A17 (API 37.1, 16 KB, `google_apis_ps16k`) | the module loaded, then the AVD boot-looped on the 4 KB-aligned preinit runner. Fixed by `finasu-preinit-runner-16k-pages.patch` (CI checks the runner is 16 KB aligned), not boot-tested since |
+| A13 to A16 QPR (API 33 to 36.1) | built (6.x kernels pass the kCFI check), not boot-tested yet |
 
 Notes:
 
@@ -200,6 +247,7 @@ Each release corresponds to one upstream version and is tagged `<variant>-<versi
 | `ksud-<variant>-<version>-<triple>[.exe]` | host `ksud` (Windows, Linux, macOS) used for `boot-patch` |
 | `ksuinit-x86_64-<variant>-<version>` | `ksuinit` placed into the ramdisk as `/init` |
 | `avd-targets.json`, `avd-ksu.py`, `SHA256SUMS` | target list, patch tool, checksums |
+| `check-root.bat` | Windows: patch, cold boot and root check in one go ([details](#windows-check-rootbat)) |
 
 KernelSU host tools come from the upstream release; KernelSU-Next and FinaSU do not publish host
 `ksud` or `ksuinit-x86_64`, so they are built here from the same tag.
@@ -270,6 +318,9 @@ applies in reverse and is skipped.
 
 ## Credits
 
+- Forked from [leemikepop/avd-kernelsu-x86_64](https://github.com/leemikepop/avd-kernelsu-x86_64), which
+  built the per-AVD KernelSU / KernelSU-Next pipeline and the SUSFS preview; this fork adds FinaSU.
+- [FinaSU](https://github.com/LyraVoid/FinaSU) by LyraVoid.
 - [5ec1cff, "在 AVD 上使用 KernelSU"](https://5ec1cff.github.io/my-blog/2024/01/16/avd-ksu/) and the
   x86_64 LKM work in KernelSU [#3562](https://github.com/tiann/KernelSU/pull/3562) / [#3570](https://github.com/tiann/KernelSU/pull/3570).
 - [nzaar9/avd-kernelsu](https://github.com/nzaar9/avd-kernelsu) for early release packaging ideas.

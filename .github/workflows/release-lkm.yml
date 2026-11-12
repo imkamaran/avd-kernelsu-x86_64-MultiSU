@@ -105,7 +105,7 @@ jobs:
               ksuinit-x86_64) cp "$f" "release/ksuinit-x86_64-${VARIANT}-${V}" ;;
             esac
           done
-          cp .github/avd-targets.json avd-ksu.py release/
+          cp .github/avd-targets.json avd-ksu.py scripts/check-root.bat release/
           n_ko=$(ls release/*_kernelsu.ko | wc -l)
           n_t=$(jq '.targets | length' .github/avd-targets.json)
           [ "$n_ko" = "$n_t" ] || { echo "::error::expected $n_t LKMs, got $n_ko"; exit 1; }
@@ -195,7 +195,7 @@ jobs:
               echo "- \`*_kernelsu.ko\` (GPL-2.0-only): \`kernel/\` of [$UP@$V](https://github.com/$UP/tree/$UP_SHA) (\`${UP_SHA:0:12}\`) plus the patches listed above, built against the listed \`kernel/common\` commit with the AVD kernel's own config by [$GITHUB_REPOSITORY@${GITHUB_SHA:0:7}]($REPO/tree/$GITHUB_SHA)."
               echo "- \`ksud-*\`, \`ksuinit-x86_64-*\` (GPL-3.0-or-later): $TOOLS [$UP@$V](https://github.com/$UP/tree/$UP_SHA)."
             fi
-            echo "- \`avd-ksu.py\`, \`avd-targets.json\`: Apache-2.0, from [$GITHUB_REPOSITORY@${GITHUB_SHA:0:7}]($REPO/tree/$GITHUB_SHA)."
+            echo "- \`avd-ksu.py\`, \`check-root.bat\`, \`avd-targets.json\`: Apache-2.0, from [$GITHUB_REPOSITORY@${GITHUB_SHA:0:7}]($REPO/tree/$GITHUB_SHA)."
           } > notes.md
           cat notes.md
       - name: Publish

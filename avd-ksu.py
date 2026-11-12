@@ -28,7 +28,8 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-REPO = os.environ.get("AVD_KSU_REPO", "leemikepop/avd-kernelsu-x86_64")
+REPO_DEFAULT = "imkamaran/avd-kernelsu-x86_64-MultiSU"   # releases of kernelsu, kernelsu-next, finasu
+REPO_UPSTREAM = "leemikepop/avd-kernelsu-x86_64"         # releases of the kernelsu-next-susfs preview
 VARIANTS = ("kernelsu", "kernelsu-next", "kernelsu-next-susfs", "finasu")
 SUSFS_VARIANT = "kernelsu-next-susfs"   # preview: KernelSU-Next fork + the SUSFS guard LKM
 SUSFS_MODULE_ID = "susfs_guard_lkm_avd"   # the release's susfs-module-*.zip (susfs-module/)
@@ -120,13 +121,21 @@ def version_key(ver):
     return tuple(int(p) if p.isdigit() else -1 for p in re.split(r"[.\-]", ver.lstrip("v")))
 
 
+def repo_for(variant):
+    """GitHub repository whose releases hold `variant`. AVD_KSU_REPO overrides it for every variant.
+    The kernelsu-next-susfs preview is built from the upstream owner's KernelSU-Next fork, so its
+    releases stay in the upstream repository."""
+    return os.environ.get("AVD_KSU_REPO") or (REPO_UPSTREAM if variant == SUSFS_VARIANT else REPO_DEFAULT)
+
+
 def find_release(variant, version):
     """The release for an exact version, or the highest non-prerelease version (the highest
     prerelease when the variant has no other kind, as for the kernelsu-next-susfs preview)."""
     prefix = f"{variant}-"
+    repo = repo_for(variant)
     candidates, pre = [], []
     for page in range(1, 11):
-        rels = http_json(f"https://api.github.com/repos/{REPO}/releases?per_page=100&page={page}")
+        rels = http_json(f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}")
         for rel in rels:
             tag = rel["tag_name"]
             if rel.get("draft") or not tag.startswith(prefix):
@@ -143,7 +152,7 @@ def find_release(variant, version):
             break
     if candidates or pre:
         return max(candidates or pre, key=lambda c: c[0])[1]
-    die(f"no release for {variant} {version or '(latest)'} in {REPO}")
+    die(f"no release for {variant} {version or '(latest)'} in {repo}")
 
 
 class Assets:
