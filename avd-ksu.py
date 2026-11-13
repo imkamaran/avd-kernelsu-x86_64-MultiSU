@@ -28,8 +28,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-REPO_DEFAULT = "imkamaran/avd-kernelsu-x86_64-MultiSU"   # releases of kernelsu, kernelsu-next, finasu
-REPO_UPSTREAM = "leemikepop/avd-kernelsu-x86_64"         # releases of the kernelsu-next-susfs preview
+REPO_DEFAULT = "imkamaran/avd-kernelsu-x86_64-MultiSU"   # releases of every variant
 VARIANTS = ("kernelsu", "kernelsu-next", "kernelsu-next-susfs", "finasu")
 SUSFS_VARIANT = "kernelsu-next-susfs"   # preview: KernelSU-Next fork + the SUSFS guard LKM
 SUSFS_MODULE_ID = "susfs_guard_lkm_avd"   # the release's susfs-module-*.zip (susfs-module/)
@@ -122,10 +121,10 @@ def version_key(ver):
 
 
 def repo_for(variant):
-    """GitHub repository whose releases hold `variant`. AVD_KSU_REPO overrides it for every variant.
-    The kernelsu-next-susfs preview is built from the upstream owner's KernelSU-Next fork, so its
-    releases stay in the upstream repository."""
-    return os.environ.get("AVD_KSU_REPO") or (REPO_UPSTREAM if variant == SUSFS_VARIANT else REPO_DEFAULT)
+    """GitHub repository whose releases hold `variant` (the same for every variant).
+    AVD_KSU_REPO overrides it, e.g. AVD_KSU_REPO=leemikepop/avd-kernelsu-x86_64 for the upstream
+    project's releases."""
+    return os.environ.get("AVD_KSU_REPO") or REPO_DEFAULT
 
 
 def find_release(variant, version):

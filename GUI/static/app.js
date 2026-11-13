@@ -19,8 +19,8 @@ const VARIANTS = {
   },
   "kernelsu-next-susfs": {
     label: "KernelSU-Next + SUSFS (preview)",
-    manager: (v, rel) => (rel && rel.url) || "https://github.com/leemikepop/avd-kernelsu-x86_64/releases",
-    note: "Preview builds (prereleases) from the upstream repository. Install the manager APK attached to the same release, then use “Install SUSFS module” on the rooted AVD. No root on 16 KB images.",
+    manager: (v, rel) => (rel && rel.url) || "https://github.com/imkamaran/avd-kernelsu-x86_64-MultiSU/releases",
+    note: "Preview builds (prereleases) of the susfs-x64-avd branch of leemikepop/KernelSU-Next. Install the manager APK attached to the same release, then use “Install SUSFS module” on the rooted AVD. No root on 16 KB images.",
     ok16k: false,
     susfs: true,
   },

@@ -61,10 +61,9 @@ for your host from this repository's [Releases](../../releases) (verified agains
 caches them in `~/.cache/avd-ksu` (override with `AVD_KSU_CACHE`). Without `--version` it uses the
 newest stable release of the chosen variant: `kernelsu-vX.Y.Z`, `kernelsu-next-vX.Y.Z` or
 `finasu-vX.Y.Z` (for the `kernelsu-next-susfs` preview, which only has prereleases, the newest
-prerelease). The preview is built from the upstream owner's KernelSU-Next fork, so `avd-ksu.py` takes
-its releases from the upstream repository,
-[leemikepop/avd-kernelsu-x86_64](https://github.com/leemikepop/avd-kernelsu-x86_64/releases).
-`AVD_KSU_REPO=<owner>/<repo>` makes every variant use another repository's releases.
+prerelease). All four variants are released here. `AVD_KSU_REPO=<owner>/<repo>` makes `avd-ksu.py` use
+another repository's releases, e.g. `AVD_KSU_REPO=leemikepop/avd-kernelsu-x86_64` for the upstream
+project's.
 
 ### Recommended: a separate patched ramdisk (`--out` + `-ramdisk`)
 
@@ -163,10 +162,12 @@ image and one whose kernel has no module.</sub>
 
 KernelSU-Next with the x86_64 port of the SUSFS guard LKM (`susfs_guard_lkm.ko`). It is **not an upstream
 release**: it is built from the `susfs-x64-avd` branch of
-[leemikepop/KernelSU-Next](https://github.com/leemikepop/KernelSU-Next/tree/susfs-x64-avd), and its
-releases are prereleases tagged `kernelsu-next-susfs-v<describe>`, e.g. `kernelsu-next-susfs-v3.4.2-108-gfe10a39f`.
+[leemikepop/KernelSU-Next](https://github.com/leemikepop/KernelSU-Next/tree/susfs-x64-avd) (set the
+repository variable `SUSFS_FORK` to `owner/repo` to build another fork), and its releases are
+prereleases tagged `kernelsu-next-susfs-v<describe>`, e.g. `kernelsu-next-susfs-v3.4.2-110-g2eed7e95`.
 Its kernel module needs a newer manager than KernelSU-Next v3.4.2, so each release attaches the official
-KernelSU-Next CI manager build of the upstream commit the branch is based on. The `avd-ksu.py`
+KernelSU-Next CI manager build of the upstream commit the branch is based on (taken from the upstream
+project's release of the same preview once that CI artifact has expired). The `avd-ksu.py`
 attached to any release (stable or preview) knows this variant; with `--variant kernelsu-next-susfs`
 it picks the newest preview prerelease.
 
