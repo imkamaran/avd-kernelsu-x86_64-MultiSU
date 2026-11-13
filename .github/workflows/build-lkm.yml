@@ -13,8 +13,8 @@ on:
         default: kernelsu
       ref:
         # No default: each project uses its own tags (kernelsu v3.3.1, kernelsu-next v3.4.2,
-        # finasu v1.5.0). kernelsu-next-susfs builds this repository owner's KernelSU-Next fork
-        # (e.g. susfs-x64-avd).
+        # finasu v1.5.0). kernelsu-next-susfs builds a branch of the KernelSU-Next fork in the
+        # SUSFS_FORK repository variable, default leemikepop/KernelSU-Next (e.g. susfs-x64-avd).
         description: Upstream tag, branch or commit (e.g. v3.3.1 for kernelsu, v3.4.2 for kernelsu-next, v1.5.0 for finasu, susfs-x64-avd for kernelsu-next-susfs)
         required: true
       target:
@@ -57,7 +57,7 @@ jobs:
             kernelsu) echo "upstream=tiann/KernelSU" >> "$GITHUB_OUTPUT" ;;
             kernelsu-next) echo "upstream=KernelSU-Next/KernelSU-Next" >> "$GITHUB_OUTPUT" ;;
             # KernelSU-Next + the x86_64 SUSFS guard LKM, from a fork branch (preview builds).
-            kernelsu-next-susfs) echo "upstream=${{ github.repository_owner }}/KernelSU-Next" >> "$GITHUB_OUTPUT" ;;
+            kernelsu-next-susfs) echo "upstream=${{ vars.SUSFS_FORK || 'leemikepop/KernelSU-Next' }}" >> "$GITHUB_OUTPUT" ;;
             # FinaSU: a KernelSU fork with its own ksud/ksuinit (built from source, like kernelsu-next).
             finasu) echo "upstream=LyraVoid/FinaSU" >> "$GITHUB_OUTPUT" ;;
             *) echo "unknown variant $VARIANT"; exit 1 ;;

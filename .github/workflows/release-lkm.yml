@@ -2,9 +2,9 @@ name: Release AVD LKMs
 
 # Publishes one GitHub Release per upstream version: tag "<variant>-<version>",
 # e.g. kernelsu-v3.3.1 or kernelsu-next-v3.4.2. avd-ksu.py consumes these releases.
-# kernelsu-next-susfs is a preview built from a branch of this repository owner's KernelSU-Next
-# fork: its version is `git describe` of that commit (e.g. v3.4.2-104-gfe10a39f) and its
-# release is always a prerelease.
+# kernelsu-next-susfs is a preview built from a branch of a KernelSU-Next fork: the repository
+# variable SUSFS_FORK (owner/repo), default leemikepop/KernelSU-Next. Its version is
+# `git describe` of that commit (e.g. v3.4.2-110-g2eed7e95) and its release is always a prerelease.
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - if: inputs.variant == 'kernelsu-next-susfs'
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/KernelSU-Next
+          repository: ${{ vars.SUSFS_FORK || 'leemikepop/KernelSU-Next' }}
           ref: ${{ inputs.version }}
           path: fork
           fetch-depth: 0
@@ -81,7 +81,8 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           BASE: ${{ needs.check.outputs.base }}
           REF: ${{ needs.check.outputs.ref }}
-          OWNER: ${{ github.repository_owner }}
+          FORK: ${{ vars.SUSFS_FORK || 'leemikepop/KernelSU-Next' }}
+          UPSTREAM_AVD: leemikepop/avd-kernelsu-x86_64
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release
@@ -113,20 +114,27 @@ jobs:
             n_s=$(ls release/*_susfs_guard_lkm.ko | wc -l)
             [ "$n_s" = "$n_t" ] || { echo "::error::expected $n_t SUSFS LKMs, got $n_s"; exit 1; }
             # The same modules as a KernelSU module zip (manager / `ksud module install`).
-            fork_sha=$(gh api "repos/$OWNER/KernelSU-Next/commits/$REF" --jq .sha)
+            fork_sha=$(gh api "repos/$FORK/commits/$REF" --jq .sha)
             python3 scripts/pack_susfs_module.py --ko-dir release --version "$V" \
               --out "release/susfs-module-${VARIANT}-${V}.zip" \
-              --source "Built from https://github.com/$OWNER/KernelSU-Next/tree/$fork_sha by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
+              --source "Built from https://github.com/$FORK/tree/$fork_sha by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
             # No KernelSU-Next release has this kernel's uapi: attach the official manager that
             # upstream CI built from the fork's base commit on dev (signed with the upstream key).
+            # CI artifacts expire; then take the same APK from the upstream project's preview
+            # release of this version, which attached it while the artifact still existed.
             run=$(gh run list -R KernelSU-Next/KernelSU-Next -w "Build Manager CI" -c "$BASE" -s success -L 1 \
-                  --json databaseId -q '.[0].databaseId')
-            [ -n "$run" ] || { echo "::error::no successful upstream Build Manager CI run for $BASE"; exit 1; }
-            gh run download "$run" -R KernelSU-Next/KernelSU-Next -n manager -D mgr
+                  --json databaseId -q '.[0].databaseId' || true)
+            if [ -n "$run" ] && gh run download "$run" -R KernelSU-Next/KernelSU-Next -n manager -D mgr; then
+              echo "ci $run" > manager-source.txt
+            else
+              echo "::warning::no downloadable Build Manager CI artifact for $BASE; using the manager attached to $UPSTREAM_AVD's $VARIANT-$V release"
+              gh release download "$VARIANT-$V" -R "$UPSTREAM_AVD" -p '*.apk' -D mgr \
+                || { echo "::error::no manager APK: the CI artifact is gone and $UPSTREAM_AVD has no $VARIANT-$V release"; exit 1; }
+              echo "release $UPSTREAM_AVD" > manager-source.txt
+            fi
             apk=$(ls mgr/*.apk | head -1)
-            [ -n "$apk" ] || { echo "::error::run $run has no manager APK"; exit 1; }
+            [ -n "$apk" ] || { echo "::error::no manager APK found"; exit 1; }
             cp "$apk" release/
-            echo "$run" > manager-run.txt
           fi
           ls release/ksud-*-x86_64-pc-windows-gnu.exe release/ksuinit-x86_64-* >/dev/null
           (cd release && sha256sum * > SHA256SUMS)
@@ -138,12 +146,12 @@ jobs:
           REF: ${{ needs.check.outputs.ref }}
           BASE: ${{ needs.check.outputs.base }}
           VARIANT: ${{ inputs.variant }}
-          OWNER: ${{ github.repository_owner }}
+          FORK: ${{ vars.SUSFS_FORK || 'leemikepop/KernelSU-Next' }}
         run: |
           case "$VARIANT" in
             kernelsu) UP=tiann/KernelSU; TOOLS="unmodified binaries from the upstream release [$UP@$V](https://github.com/$UP/releases/tag/$V), source" ;;
             kernelsu-next) UP=KernelSU-Next/KernelSU-Next; TOOLS="built unmodified from" ;;
-            kernelsu-next-susfs) UP=$OWNER/KernelSU-Next; TOOLS="built from" ;;
+            kernelsu-next-susfs) UP=$FORK; TOOLS="built from" ;;
             finasu) UP=LyraVoid/FinaSU; TOOLS="built unmodified from" ;;
           esac
           UP_SHA=$(gh api "repos/$UP/commits/$REF" --jq .sha)
@@ -170,8 +178,10 @@ jobs:
             echo "Patch an AVD: \`python avd-ksu.py patch --avd <name> --variant ${VARIANT} --version ${V}\` (see README)."
             if [ "$VARIANT" = kernelsu-next-susfs ]; then
               apk=$(cd release && ls *.apk)
-              run=$(cat manager-run.txt)
-              echo "Install the attached manager \`$apk\`: the official KernelSU-Next CI build ([run $run](https://github.com/KernelSU-Next/KernelSU-Next/actions/runs/$run)) of upstream \`dev\` at [\`${BASE:0:12}\`](https://github.com/KernelSU-Next/KernelSU-Next/commit/$BASE), the commit this branch is based on. KernelSU-Next v3.4.2's manager does not match this kernel module."
+              read -r src arg < manager-source.txt
+              if [ "$src" = ci ]; then via="([run $arg](https://github.com/KernelSU-Next/KernelSU-Next/actions/runs/$arg))"
+              else via="(taken from [$arg's \`$VARIANT-$V\` release](https://github.com/$arg/releases/tag/$VARIANT-$V), the CI artifact having expired)"; fi
+              echo "Install the attached manager \`$apk\`: the official KernelSU-Next CI build $via of upstream \`dev\` at [\`${BASE:0:12}\`](https://github.com/KernelSU-Next/KernelSU-Next/commit/$BASE), the commit this branch is based on. KernelSU-Next v3.4.2's manager does not match this kernel module."
               echo "Then, with the rooted AVD running, install SUSFS: \`python avd-ksu.py susfs --version ${V}\` installs the attached module \`susfs-module-${VARIANT}-${V}.zip\` and loads it right away; it then loads at every boot. Installing the zip from the manager's module page works too (it loads after the next restart)."
               echo
               echo "### Known limitations"
