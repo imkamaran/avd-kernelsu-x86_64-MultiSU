@@ -80,7 +80,7 @@ python avd-ksu.py list                                   # AVDs, kernels, ramdis
 # KernelSU (latest release) / KernelSU-Next / FinaSU (pinned versions)
 python avd-ksu.py patch --avd API35-GAPPS --out ksu-API35.img
 python avd-ksu.py patch --avd API35-GAPPS --variant kernelsu-next --version v3.4.2 --out ksun-API35.img
-python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.5.0 --out fina-API35.img
+python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.6.4 --out fina-API35.img
 
 # boot with it (cold boot; a Quick Boot snapshot would restore the old state)
 emulator -avd API35-GAPPS -ramdisk ksu-API35.img -no-snapshot-load
@@ -134,7 +134,7 @@ Double-click it (it lists your AVDs and asks which one; `finasu`, newest release
 variant and version:
 
 ```bat
-check-root.bat Pixel_7 finasu v1.5.0
+check-root.bat Pixel_7 finasu v1.6.4
 ```
 
 It needs Python on `PATH`, `avd-ksu.py` next to it (or one folder up, as in a clone of this
@@ -213,11 +213,11 @@ host binaries). So `finasu` is a first-class variant here: per-AVD modules plus 
 with `avd-ksu.py` exactly like the others.
 
 ```sh
-python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.5.0 --out fina-API35.img
+python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.6.4 --out fina-API35.img
 emulator -avd API35-GAPPS -ramdisk fina-API35.img -no-snapshot-load
 ```
 
-Then install and open the **FinaSU manager APK of the same version** (`v1.5.0`) from FinaSU's
+Then install and open the **FinaSU manager APK of the same version** (`v1.6.4`) from FinaSU's
 [releases](https://github.com/LyraVoid/FinaSU/releases), close the emulator and start it again with the
 same command, and grant root from the manager as usual. On Windows,
 [`scripts/check-root.bat`](#windows-check-rootbat) does the patch, the cold boot and the checks in one
@@ -246,16 +246,18 @@ Notes:
   [`finasu-x86_64-kcfi-icall-trampoline.patch`](patches/finasu-x86_64-kcfi-icall-trampoline.patch),
   the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)). The KernelSU
   patches in [`patches/`](patches/) target code paths FinaSU has restructured, so they are not used.
-  Every target also gets
+  Every target also lists
   [`finasu-preinit-runner-16k-pages.patch`](patches/finasu-preinit-runner-16k-pages.patch), without
-  which 16 KB page-size images (API 37.1, 37.2) boot-loop.
+  which FinaSU v1.5.x boot-loops on 16 KB page-size images (API 37.1, 37.2). FinaSU v1.6.0 and later
+  fix this in their own Kbuild, so the patch's `Skip-If:` header skips it there; CI checks the runner
+  is 16 KB aligned either way.
 - FinaSU's SUSFS and other hiding features are kernel-capability-gated and share the x86_64
   syscall-hook limitations described above for the older AVD kernels (A13/A14) and the 16 KB images.
 
 ## Releases
 
 Each release corresponds to one upstream version and is tagged `<variant>-<version>`, e.g.
-`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.5.0`. Assets:
+`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.6.4`. Assets:
 
 | Asset | Content |
 | :--- | :--- |
@@ -295,7 +297,8 @@ Local build (Docker): `scripts/build-target.sh <target> <kernelsu|kernelsu-next>
 ### Patches
 
 Applied in the order listed in `.github/avd-targets.json`. A patch that upstream has already merged
-applies in reverse and is skipped.
+applies in reverse and is skipped. A patch whose header has a `Skip-If: <file> <regex>` line is also
+skipped when `<regex>` already matches `<file>` in the upstream tree (upstream fixed it its own way).
 
 - `x86_64-seccomp-skip.patch` (A13, A14; merged upstream as
   [tiann/KernelSU#3966](https://github.com/tiann/KernelSU/pull/3966), not in a release yet): the
