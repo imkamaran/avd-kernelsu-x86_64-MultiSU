@@ -244,7 +244,9 @@ Notes:
   A manager you build and sign yourself is not trusted.
 - On the 6.x kernels (A15, A16, A17) `finasu` applies its own
   [`finasu-x86_64-kcfi-icall-trampoline.patch`](patches/finasu-x86_64-kcfi-icall-trampoline.patch),
-  the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)). The KernelSU
+  the FinaSU port of `x86_64-kcfi-icall-trampoline.patch` (see [Patches](#patches)), plus
+  [`finasu-x86_64-kcfi-icall-v1.6.patch`](patches/finasu-x86_64-kcfi-icall-v1.6.patch) for the
+  call sites FinaSU v1.6 added (skipped on v1.5.x by its `Skip-Unless:` header). The KernelSU
   patches in [`patches/`](patches/) target code paths FinaSU has restructured, so they are not used.
   Every target also lists
   [`finasu-preinit-runner-16k-pages.patch`](patches/finasu-preinit-runner-16k-pages.patch), without
@@ -298,7 +300,9 @@ Local build (Docker): `scripts/build-target.sh <target> <kernelsu|kernelsu-next>
 
 Applied in the order listed in `.github/avd-targets.json`. A patch that upstream has already merged
 applies in reverse and is skipped. A patch whose header has a `Skip-If: <file> <regex>` line is also
-skipped when `<regex>` already matches `<file>` in the upstream tree (upstream fixed it its own way).
+skipped when `<regex>` already matches `<file>` in the upstream tree (upstream fixed it its own way);
+a `Skip-Unless: <file> <regex>` line skips it when `<regex>` does not match (the code it patches is
+not in that version).
 
 - `x86_64-seccomp-skip.patch` (A13, A14; merged upstream as
   [tiann/KernelSU#3966](https://github.com/tiann/KernelSU/pull/3966), not in a release yet): the

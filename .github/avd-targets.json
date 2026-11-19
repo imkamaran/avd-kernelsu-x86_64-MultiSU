@@ -69,6 +69,7 @@
         "kernelsu-next-susfs": [],
         "finasu": [
           "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
         ]
       }
@@ -91,6 +92,7 @@
         "kernelsu-next-susfs": [],
         "finasu": [
           "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
         ]
       }
@@ -113,6 +115,7 @@
         "kernelsu-next-susfs": [],
         "finasu": [
           "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
         ]
       }
@@ -135,6 +138,7 @@
         "kernelsu-next-susfs": [],
         "finasu": [
           "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
         ]
       }
@@ -157,6 +161,7 @@
         "kernelsu-next-susfs": [],
         "finasu": [
           "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
         ]
       }

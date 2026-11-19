@@ -1,0 +1,67 @@
+FinaSU v1.6.x add-on to finasu-x86_64-kcfi-icall-trampoline.patch (apply after it).
+
+v1.6 adds the __nocfi SELinux setxattr relabel hook and reworks my_do_syscall_64;
+route their unchecked indirect calls through KSU_ICALL (see kernel/infra/icall.h).
+v1.5.x has neither shape, so the patch is skipped there.
+
+Skip-Unless: kernel/feature/selinux_hide.c my_inode_setxattr
+
+diff --git a/kernel/feature/selinux_hide.c b/kernel/feature/selinux_hide.c
+index 66a6e6d..3770765 100644
+--- a/kernel/feature/selinux_hide.c
++++ b/kernel/feature/selinux_hide.c
+@@ -360,7 +360,7 @@ static int __nocfi my_inode_setxattr(struct dentry *dentry, const char *name, co
+         return PTR_ERR(isec);
+     // Match backing_inode_security: keep old label if reload fails
+     if (READ_ONCE(isec->initialized) != LABEL_INITIALIZED)
+-        inode_doinit_with_dentry_fn(inode, dentry);
++        (void)KSU_ICALL(inode_doinit_with_dentry_fn, inode, dentry);
+ 
+     ad.type = LSM_AUDIT_DATA_DENTRY;
+     ad.u.dentry = dentry;
+@@ -403,11 +403,11 @@ static int __nocfi my_inode_setxattr(struct dentry *dentry, const char *name, co
+ 
+ call_orig:
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+-    return ((inode_setxattr_fn)selinux_inode_setxattr_hook.original)(idmap, dentry, name, value, size, flags);
++    return KSU_ICALL((inode_setxattr_fn)selinux_inode_setxattr_hook.original, idmap, dentry, name, value, size, flags);
+ #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+-    return ((inode_setxattr_fn)selinux_inode_setxattr_hook.original)(mnt_userns, dentry, name, value, size, flags);
++    return KSU_ICALL((inode_setxattr_fn)selinux_inode_setxattr_hook.original, mnt_userns, dentry, name, value, size, flags);
+ #else
+-    return ((inode_setxattr_fn)selinux_inode_setxattr_hook.original)(dentry, name, value, size, flags);
++    return KSU_ICALL((inode_setxattr_fn)selinux_inode_setxattr_hook.original, dentry, name, value, size, flags);
+ #endif
+ }
+ 
+diff --git a/kernel/hook/x86_64/syscall_hook.c b/kernel/hook/x86_64/syscall_hook.c
+index 6853b5f..4b626da 100644
+--- a/kernel/hook/x86_64/syscall_hook.c
++++ b/kernel/hook/x86_64/syscall_hook.c
+@@ -243,7 +243,7 @@ static __always_inline bool my_do_syscall_x64(struct pt_regs *regs, int nr)
+ 
+     if (likely(unr < NR_syscalls)) {
+         unr = array_index_nospec(unr, NR_syscalls);
+-        regs->ax = ksu_syscall_table[unr](regs);
++        regs->ax = KSU_ICALL(ksu_syscall_table[unr], regs);
+         return true;
+     }
+     return false;
+@@ -251,7 +251,7 @@ static __always_inline bool my_do_syscall_x64(struct pt_regs *regs, int nr)
+ 
+ static void __nocfi my_do_syscall_64(struct pt_regs *regs, int nr)
+ {
+-    nr = syscall_enter_from_user_mode_fn(regs, nr);
++    nr = KSU_ICALL(syscall_enter_from_user_mode_fn, regs, nr);
+     // Pick up the tracepoint's nr rewrite unless the syscall is skipped (-1, e.g. seccomp)
+     if (nr != -1)
+         nr = syscall_get_nr(current, regs);
+@@ -263,7 +263,7 @@ static void __nocfi my_do_syscall_64(struct pt_regs *regs, int nr)
+         regs->ax = -ENOSYS;
+     }
+ 
+-    syscall_exit_to_user_mode_fn(regs);
++    KSU_ICALL(syscall_exit_to_user_mode_fn, regs);
+ }
+ #endif
+ #endif
