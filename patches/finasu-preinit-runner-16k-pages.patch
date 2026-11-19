@@ -1,3 +1,11 @@
+FinaSU: link the preinit runner for 16 KB pages (FinaSU <= v1.5.x).
+
+init execs the runner at boot; with lld's 4 KB x86_64 default its PT_LOADs
+are rejected on page_shift=14 images (-EINVAL past the point of no return),
+which boot-loops. FinaSU v1.6.x pins max-page-size itself, so skip there.
+
+Skip-If: kernel/Kbuild max-page-size
+
 diff --git a/kernel/Kbuild b/kernel/Kbuild
 index f4fa71a..dbe346b 100644
 --- a/kernel/Kbuild

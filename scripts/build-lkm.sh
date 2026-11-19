@@ -61,8 +61,16 @@ cd "$W/KernelSU"
 git checkout -q --detach "$KSU_SHA"
 echo "   $(git describe --tags --always) ($KSU_SHA), $(git rev-list --count HEAD) commits"
 # A patch that upstream has already merged applies in reverse: skip it instead of failing.
+# A patch may also carry "Skip-If: <file> <ERE>" lines in its header: when upstream already
+# fixed the problem its own way (the ERE matches <file>), the patch is skipped.
 for p in ${PATCHES[@]+"${PATCHES[@]}"}; do
-  if git apply --check "/patches/$p" 2>/dev/null; then
+  skip=
+  while read -r _ f re; do
+    [ -n "$f" ] && [ -f "$f" ] && grep -Eq -- "$re" "$f" && skip="$f matches /$re/"
+  done < <(sed -n '/^diff --git/q; s/^Skip-If:[[:space:]]*/x /p' "/patches/$p")
+  if [ -n "$skip" ]; then
+    echo "== skip $p (fixed upstream in $KSU_REF: $skip)"
+  elif git apply --check "/patches/$p" 2>/dev/null; then
     echo "== apply $p"; git apply -v "/patches/$p"
   elif git apply --reverse --check "/patches/$p" 2>/dev/null; then
     echo "== skip $p (already in $KSU_REF)"

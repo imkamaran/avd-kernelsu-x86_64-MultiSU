@@ -13,9 +13,9 @@ on:
         default: kernelsu
       ref:
         # No default: each project uses its own tags (kernelsu v3.3.1, kernelsu-next v3.4.2,
-        # finasu v1.5.0). kernelsu-next-susfs builds a branch of the KernelSU-Next fork in the
+        # finasu v1.6.4). kernelsu-next-susfs builds a branch of the KernelSU-Next fork in the
         # SUSFS_FORK repository variable, default leemikepop/KernelSU-Next (e.g. susfs-x64-avd).
-        description: Upstream tag, branch or commit (e.g. v3.3.1 for kernelsu, v3.4.2 for kernelsu-next, v1.5.0 for finasu, susfs-x64-avd for kernelsu-next-susfs)
+        description: Upstream tag, branch or commit (e.g. v3.3.1 for kernelsu, v3.4.2 for kernelsu-next, v1.6.4 for finasu, susfs-x64-avd for kernelsu-next-susfs)
         required: true
       target:
         description: Target id from avd-targets.json, or "all"
