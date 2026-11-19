@@ -232,6 +232,10 @@ Tested so far (`finasu-v1.5.0`):
 | A17 (API 37.1, 16 KB, `google_apis_ps16k`) | the module loaded, then the AVD boot-looped on the 4 KB-aligned preinit runner. Fixed by `finasu-preinit-runner-16k-pages.patch` (CI checks the runner is 16 KB aligned), not boot-tested since |
 | A13 to A16 QPR (API 33 to 36.1) | built (6.x kernels pass the kCFI check), not boot-tested yet |
 
+`finasu-v1.6.4` (current release) builds for all seven targets with the same checks passing
+(kCFI on the 6.x kernels, 16 KB-aligned preinit runner, official manager signature), but has not
+been boot-tested yet; `finasu-v1.5.0` stays available if you need the tested build.
+
 Notes:
 
 - The release tags its LKMs `finasu-v<version>` and attaches `ksud` / `ksuinit` built from the same
