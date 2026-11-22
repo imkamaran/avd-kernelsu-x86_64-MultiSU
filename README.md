@@ -355,7 +355,28 @@ manager APK; boot 2 (cold restart) checks:
 | SUSFS | `kernelsu-next-susfs` only: `avd-ksu.py susfs` installs and loads the SUSFS module |
 
 Documented limitations (KernelSU-Next's manager on 16 KB images) are reported as *known* instead of
-failing. The `stock` variant boots the unpatched images, as a baseline for the harness. A second job,
+failing.
+
+Last run (2026-11-22, latest releases: `kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`,
+`kernelsu-next-susfs-v3.4.2-110-g2eed7e95`, `finasu-v1.7.0`): **40 of 40 combinations pass** every check
+that applies, the only exceptions being the documented KernelSU-Next 16 KB limitation (known).
+
+| Target | `kernelsu` | `kernelsu-next` | `kernelsu-next-susfs` | `finasu` |
+| :--- | :---: | :---: | :---: | :---: |
+| `a13-api33-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a13-api33-ext4-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a14-api34-6.1` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a15-api35-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a15-api35-ext15-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a16-api36.0-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a16-api36.0-16k-6.6` (16 KB) | ✅ | boots, ⚠️ known | boots, ⚠️ known | ✅ |
+| `a16-api36.1-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a17-api37.0-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
+| `a17-api37.1-6.12` (16 KB) | ✅ | boots, ⚠️ known | boots, ⚠️ known | ✅ |
+
+✅ = boot, root and manager pass (and SUSFS loads for the preview). The SUSFS check only covers
+loading; partial hiding on A13/A14 is described under
+[Preview](#preview-kernelsu-next--susfs-kernelsu-next-susfs). The `stock` variant boots the unpatched images, as a baseline for the harness. A second job,
 [`scripts/check_images.py`](scripts/check_images.py), lists Google's current x86_64 Play Store images
 (API 33+), reads each one's kernel string over HTTP range requests and fails when a kernel has no target.
 

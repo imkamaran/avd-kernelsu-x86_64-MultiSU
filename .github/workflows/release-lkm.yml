@@ -188,7 +188,7 @@ jobs:
               echo
               echo "- A15, A16, A16 QPR and A17 (API 35, 36.0, 36.1, 37.0): root, SUSFS loading and hiding all work in testing."
               echo "- A13 and A14 (API 33, 34): root and SUSFS load, but hiding is partial: \`O_PATH\` opens, \`mkdir\` and directory listings still reveal a hidden path (no IBT landing pads for SUSFS's opath, kstat and create hooks on these kernels)."
-              echo "- 16 KB page-size images (API 37.1, 37.2): no root. The attached manager's \`libksud.so\` is 4 KB aligned, so \`/data/adb/ksud\` is never installed; the AVD still boots."
+              echo "- 16 KB page-size images (API 35, 36.0, 37.1, 37.2 \`_ps16k\`): no root. The attached manager's \`libksud.so\` is 4 KB aligned, so \`/data/adb/ksud\` is never installed; the AVD still boots."
               echo "- Preview builds from a fork branch: not reviewed upstream. See the [README](https://github.com/$GITHUB_REPOSITORY#preview-kernelsu-next--susfs-kernelsu-next-susfs)."
             else
               echo "Install the matching ${VARIANT} ${V} manager APK from the upstream release."
