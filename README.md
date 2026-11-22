@@ -21,21 +21,26 @@ named in that kernel's Android CI build manifest, with the kernel's own config (
 | AVD | Kernel | Build ID |
 | :--- | :--- | :--- |
 | Android 13 (API 33) | `5.15.119-android13-8` | 10871489 |
+| Android 13 (API 33-ext4) | `5.15.41-android13-8` | 8747247 |
 | Android 14 (API 34) | `6.1.23-android14-4` | 9964412 |
 | Android 15 (API 35) | `6.6.30-android15-8` | 11987101 |
+| Android 15 (API 35-ext15), and API 35 16 KB page size | `6.6.50-android15-8` | 12525588 |
 | Android 16 (API 36.0) | `6.6.66-android15-8` | 13070261 |
+| Android 16 (API 36.0, 16 KB page size) | `6.6.66-android15-8` | 13812146 |
 | Android 16 QPR (API 36.1) | `6.12.38-android16-5` | 13996879 |
 | Android 17 (API 37.0), and API 37.2 16 KB page size | `6.12.81-android16-6` | 16167562 |
 | Android 17 (API 37.1, 16 KB page size) | `6.12.69-android16-6` | 15053784 |
 
-The 16 KB images (`google_apis_playstore_ps16k`) boot the same kernel binary with `page_shift=14`.
+The 16 KB images (`google_apis_playstore_ps16k`) boot with `page_shift=14`, most of them the same kernel
+binary as a 4 KB image (API 36.0 16 KB has its own build).
 **KernelSU-Next v3.4.2 does not work on 16 KB images**: its manager APK ships `libksud.so` (the
 `/data/adb/ksud` binary) without 16 KB-aligned LOAD segments, so ksud is never installed. The module itself
 loads fine. KernelSU v3.3.1 works on 16 KB images.
 
-x86_64 `google_apis_playstore` images at their latest SDK revision. Other variants of the same API level
-(`google_apis`, `default`, `*_ps16k`, `-extNN`) may ship a different kernel; `avd-ksu.py list` shows yours
-and `patch` refuses kernels that are not in the table. Minimum upstream versions: **KernelSU v3.3.0**, **KernelSU-Next v3.4.0**, **FinaSU v1.5.0**.
+x86_64 `google_apis_playstore` (and `_ps16k`) images at their latest SDK revision; the **Boot test**
+workflow checks this list against Google's repository (see [Workflows](#workflows)). Other image types
+(`google_apis`, `default`) may ship a different kernel; `avd-ksu.py list` shows yours and `patch`
+refuses kernels that are not in the table. Minimum upstream versions: **KernelSU v3.3.0**, **KernelSU-Next v3.4.0**, **FinaSU v1.5.0**.
 
 ## Usage
 
@@ -80,7 +85,7 @@ python avd-ksu.py list                                   # AVDs, kernels, ramdis
 # KernelSU (latest release) / KernelSU-Next / FinaSU (pinned versions)
 python avd-ksu.py patch --avd API35-GAPPS --out ksu-API35.img
 python avd-ksu.py patch --avd API35-GAPPS --variant kernelsu-next --version v3.4.2 --out ksun-API35.img
-python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.6.4 --out fina-API35.img
+python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.7.0 --out fina-API35.img
 
 # boot with it (cold boot; a Quick Boot snapshot would restore the old state)
 emulator -avd API35-GAPPS -ramdisk ksu-API35.img -no-snapshot-load
@@ -134,7 +139,7 @@ Double-click it (it lists your AVDs and asks which one; `finasu`, newest release
 variant and version:
 
 ```bat
-check-root.bat Pixel_7 finasu v1.6.4
+check-root.bat Pixel_7 finasu v1.7.0
 ```
 
 It needs Python on `PATH`, `avd-ksu.py` next to it (or one folder up, as in a clone of this
@@ -213,28 +218,20 @@ host binaries). So `finasu` is a first-class variant here: per-AVD modules plus 
 with `avd-ksu.py` exactly like the others.
 
 ```sh
-python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.6.4 --out fina-API35.img
+python avd-ksu.py patch --avd API35-GAPPS --variant finasu --version v1.7.0 --out fina-API35.img
 emulator -avd API35-GAPPS -ramdisk fina-API35.img -no-snapshot-load
 ```
 
-Then install and open the **FinaSU manager APK of the same version** (`v1.6.4`) from FinaSU's
+Then install and open the **FinaSU manager APK of the same version** (`v1.7.0`) from FinaSU's
 [releases](https://github.com/LyraVoid/FinaSU/releases), close the emulator and start it again with the
 same command, and grant root from the manager as usual. On Windows,
 [`scripts/check-root.bat`](#windows-check-rootbat) does the patch, the cold boot and the checks in one
 go. To keep root without `-ramdisk`, patch the SDK ramdisk in place instead
 (see [Alternative](#alternative-patch-the-sdk-ramdisk-in-place)).
 
-Tested so far (`finasu-v1.5.0`):
-
-| AVD | Status |
-| :--- | :--- |
-| A17 (API 37.0, `google_apis_playstore`) | root works (`su -c id` gives `uid=0 ... context=u:r:ksu:s0`) and the FinaSU manager recognises the module |
-| A17 (API 37.1, 16 KB, `google_apis_ps16k`) | the module loaded, then the AVD boot-looped on the 4 KB-aligned preinit runner. Fixed by `finasu-preinit-runner-16k-pages.patch` (CI checks the runner is 16 KB aligned), not boot-tested since |
-| A13 to A16 QPR (API 33 to 36.1) | built (6.x kernels pass the kCFI check), not boot-tested yet |
-
-`finasu-v1.6.4` (current release) builds for all seven targets with the same checks passing
-(kCFI on the 6.x kernels, 16 KB-aligned preinit runner, official manager signature), but has not
-been boot-tested yet; `finasu-v1.5.0` stays available if you need the tested build.
+Tested: `finasu-v1.7.0` passes the [boot test](#boot-test) on every target (boot, root, the official
+manager installs `ksud`), the 16 KB images included. By hand, `finasu-v1.5.0` rooted an API 37.0
+Pixel 7 AVD with the FinaSU manager recognising the module.
 
 Notes:
 
@@ -263,7 +260,7 @@ Notes:
 ## Releases
 
 Each release corresponds to one upstream version and is tagged `<variant>-<version>`, e.g.
-`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.6.4`. Assets:
+`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.7.0`. Assets:
 
 | Asset | Content |
 | :--- | :--- |
@@ -283,6 +280,7 @@ KernelSU host tools come from the upstream release; KernelSU-Next and FinaSU do 
 
 - **Build AVD LKMs** (`build-lkm.yml`): any upstream tag, branch or commit → artifacts.
 - **Release AVD LKMs** (`release-lkm.yml`): an upstream `vX.Y.Z` tag → GitHub Release.
+- **Boot test** (`boot-test.yml`): boots published releases on real AVDs, see [below](#boot-test).
 
 Per target, CI:
 
@@ -340,13 +338,36 @@ not in that version).
   `-z max-page-size=16384`, which also works on 4 KB kernels; `build-lkm.sh` now fails the build
   when the runner has a LOAD segment aligned to less than 16 KB.
 
+### Boot test
+
+**Boot test** (`boot-test.yml`, run from the Actions tab) boots every variant's latest release (or a
+chosen variant and version) on every target under KVM, with
+[`scripts/ci-boot-test.sh`](scripts/ci-boot-test.sh): it unpacks the target's exact Google system image
+into a throwaway AVD, patches it with `avd-ksu.py` from the release (as a user would, plus
+`--allow-shell`), then follows the README's steps. Boot 1 (fresh data) installs and opens the official
+manager APK; boot 2 (cold restart) checks:
+
+| Check | Pass means |
+| :--- | :--- |
+| Boot | both boots reach `sys.boot_completed=1` (no boot loop or panic) |
+| Root | `su -c id` from `adb shell` gives `uid=0` |
+| Manager | the manager installed `/data/adb/ksud` (it only does so when the module trusts its signature) |
+| SUSFS | `kernelsu-next-susfs` only: `avd-ksu.py susfs` installs and loads the SUSFS module |
+
+Documented limitations (KernelSU-Next's manager on 16 KB images) are reported as *known* instead of
+failing. The `stock` variant boots the unpatched images, as a baseline for the harness. A second job,
+[`scripts/check_images.py`](scripts/check_images.py), lists Google's current x86_64 Play Store images
+(API 33+), reads each one's kernel string over HTTP range requests and fails when a kernel has no target.
+
 ## Adding an AVD kernel
 
 1. Add an entry to `.github/avd-targets.json`: `kernel_release` and `build_id` from
    `python avd-ksu.py list`, `kmi`, and `probe_image` (zip name in Google's
-   [sys-img repository](https://dl.google.com/android/repository/sys-img/google_apis_playstore/sys-img2-3.xml)).
-2. Run **Build AVD LKMs** for that target and boot-test it on a dedicated test AVD
-   (boot 1 wipes the AVD's user data):
+   [sys-img repository](https://dl.google.com/android/repository/sys-img/google_apis_playstore/sys-img2-3.xml));
+   the **Boot test** workflow's image check lists the kernels that need one. Copy `patches` from the
+   target of the same kernel line.
+2. Run **Build AVD LKMs** for that target, release, then run **Boot test** for it. To test on your own
+   machine instead, use a dedicated test AVD (boot 1 wipes the AVD's user data):
    `ALLOW_WIPE=1 scripts/boot-test.sh <test-avd> <patched-ramdisk.img> <manager.apk> <package> <out-dir>`.
 
 ## Credits
