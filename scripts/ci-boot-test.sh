@@ -214,7 +214,7 @@ echo "boot 2 ksud: ${ksud:-missing} (manager $pkg)" | tee -a "$OUT/checks.log"
 open_manager "$pkg" >/dev/null || true
 "${ADB[@]}" exec-out screencap -p > "$OUT/manager-boot2.png" 2>/dev/null || true
 if [ -n "$ksud" ]; then
-  R[manager]=pass; NOTES+=("ksud $ksud")
+  R[manager]=pass; NOTES+=("${ksud#ksud }")
 elif [ -n "$KNOWN_16K" ]; then
   R[manager]=known; NOTES+=("16 KB image: KernelSU-Next manager's ksud is not 16 KB aligned (README)")
 else

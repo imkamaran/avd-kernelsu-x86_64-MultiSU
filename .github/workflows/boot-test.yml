@@ -15,7 +15,7 @@ on:
         description: Release version to test (single variant only; default the latest release)
         required: false
       target:
-        description: Target id from avd-targets.json, or "all"
+        description: Target id(s) from avd-targets.json, comma-separated, or "all"
         default: all
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
           if [ "$VARIANT" = all ]; then v='["kernelsu","kernelsu-next","kernelsu-next-susfs","finasu"]'
           else v="[\"$VARIANT\"]"; fi
           m=$(jq -c --argjson v "$v" --arg t "$TARGET" \
-            '{include: [.targets[] | select($t == "all" or .id == $t) | .id as $id | $v[] | {target: $id, variant: .}]}' \
+            '($t | split(",") | map(gsub("^ +| +$"; ""))) as $ts | {include: [.targets[] | select($t == "all" or (.id | IN($ts[]))) | .id as $id | $v[] | {target: $id, variant: .}]}' \
             .github/avd-targets.json)
           [ "$(jq '.include | length' <<<"$m")" -gt 0 ] || { echo "::error::no target $TARGET"; exit 1; }
           echo "matrix=$m" >> "$GITHUB_OUTPUT"
