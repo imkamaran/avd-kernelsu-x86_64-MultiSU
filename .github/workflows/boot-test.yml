@@ -1,0 +1,108 @@
+name: Boot test
+
+# Boots every published variant on every AVD target under KVM and checks root, the official
+# manager and (for the SUSFS preview) the SUSFS module; see scripts/boot_test.sh. A separate job
+# compares Google's current x86_64 Play Store system images with .github/avd-targets.json.
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Variant to test, or "all" (each at its latest release)
+        type: choice
+        options: [all, kernelsu, kernelsu-next, kernelsu-next-susfs, finasu]
+        default: all
+      version:
+        description: Release version to test (single variant only; default the latest release)
+        required: false
+      target:
+        description: Target id from avd-targets.json, or "all"
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: official system images vs targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check_images.py --summary "$GITHUB_STEP_SUMMARY"
+
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        env:
+          VARIANT: ${{ inputs.variant }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          if [ "$VARIANT" = all ]; then v='["kernelsu","kernelsu-next","kernelsu-next-susfs","finasu"]'
+          else v="[\"$VARIANT\"]"; fi
+          m=$(jq -c --argjson v "$v" --arg t "$TARGET" \
+            '{include: [.targets[] | select($t == "all" or .id == $t) | .id as $id | $v[] | {target: $id, variant: .}]}' \
+            .github/avd-targets.json)
+          [ "$(jq '.include | length' <<<"$m")" -gt 0 ] || { echo "::error::no target $TARGET"; exit 1; }
+          echo "matrix=$m" >> "$GITHUB_OUTPUT"
+          jq . <<<"$m"
+
+  boot:
+    needs: setup
+    name: ${{ matrix.variant }} / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules "$AGENT_TOOLSDIRECTORY" || true
+      - name: Emulator and platform-tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install emulator platform-tools > /dev/null
+          "$ANDROID_HOME/emulator/emulator" -version | head -1
+      - name: Boot test
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/out
+          VERSION: ${{ inputs.variant != 'all' && inputs.version || '' }}
+        run: scripts/boot_test.sh "${{ matrix.target }}" "${{ matrix.variant }}" "$VERSION"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-${{ matrix.variant }}-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/out/*.log
+            ${{ runner.temp }}/out/*.md
+            ${{ runner.temp }}/out/*.png
+          if-no-files-found: ignore
+
+  summary:
+    needs: boot
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: boot-*
+          path: results
+      - run: |
+          {
+            echo "### Boot test"
+            echo
+            echo "| Variant | Version | Target | Boot | Root | Manager | SUSFS | Notes |"
+            echo "| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |"
+            cat results/*/result.md 2>/dev/null | sort
+          } | tee -a "$GITHUB_STEP_SUMMARY"
