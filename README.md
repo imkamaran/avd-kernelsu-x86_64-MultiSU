@@ -279,7 +279,9 @@ KernelSU host tools come from the upstream release; KernelSU-Next and FinaSU do 
 ## Workflows
 
 - **Build AVD LKMs** (`build-lkm.yml`): any upstream tag, branch or commit → artifacts.
-- **Release AVD LKMs** (`release-lkm.yml`): an upstream `vX.Y.Z` tag → GitHub Release.
+- **Release AVD LKMs** (`release-lkm.yml`): an upstream `vX.Y.Z` tag → GitHub Release. Running it again
+  for a published tag replaces its assets and notes in place; with **recreate** it deletes the release
+  and tag first and publishes it fresh at the current commit (same tag and file names).
 - **Boot test** (`boot-test.yml`): boots published releases on real AVDs, see [below](#boot-test).
 
 Per target, CI:

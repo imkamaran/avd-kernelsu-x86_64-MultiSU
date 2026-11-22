@@ -20,6 +20,10 @@ on:
       prerelease:
         type: boolean
         default: false
+      recreate:
+        description: Delete an existing release of this tag (and the tag) and create it again at this commit
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -213,8 +217,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.variant }}-${{ needs.check.outputs.version }}
           PRERELEASE: ${{ inputs.prerelease || inputs.variant == 'kernelsu-next-susfs' }}
+          RECREATE: ${{ inputs.recreate }}
         run: |
           flags=(); [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          if [ "$RECREATE" = true ] && gh release view "$TAG" >/dev/null 2>&1; then
+            # Fresh release at this commit: same tag and asset names, so download URLs stay valid.
+            echo "recreate: deleting release and tag $TAG"
+            gh release delete "$TAG" --cleanup-tag --yes
+            for _ in 1 2 3 4 5 6; do gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" >/dev/null 2>&1 || break; sleep 5; done
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             # Re-publish: drop assets this run no longer produces (e.g. a removed or renamed
             # target), so nothing outside SHA256SUMS stays attached.
