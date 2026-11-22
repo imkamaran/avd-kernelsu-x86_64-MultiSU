@@ -1,7 +1,7 @@
 name: Boot test
 
 # Boots every published variant on every AVD target under KVM and checks root, the official
-# manager and (for the SUSFS preview) the SUSFS module; see scripts/boot_test.sh. A separate job
+# manager and (for the SUSFS preview) the SUSFS module; see scripts/ci-boot-test.sh. A separate job
 # compares Google's current x86_64 Play Store system images with .github/avd-targets.json.
 on:
   workflow_dispatch:
@@ -78,7 +78,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OUT: ${{ runner.temp }}/out
           VERSION: ${{ inputs.variant != 'all' && inputs.version || '' }}
-        run: scripts/boot_test.sh "${{ matrix.target }}" "${{ matrix.variant }}" "$VERSION"
+        run: scripts/ci-boot-test.sh "${{ matrix.target }}" "${{ matrix.variant }}" "$VERSION"
       - if: always()
         uses: actions/upload-artifact@v4
         with:
