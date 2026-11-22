@@ -26,6 +26,29 @@
       }
     },
     {
+      "id": "a13-api33-ext4-5.15",
+      "label": "Android 13 (API 33-ext4)",
+      "api_level": "33",
+      "kmi": "android13-5.15",
+      "build_id": "8747247",
+      "kernel_release": "5.15.41-android13-8-00205-gf1bf82c3dacd-ab8747247",
+      "probe_image": "x86_64-33_r01.zip",
+      "patches": {
+        "kernelsu": [
+          "x86_64-seccomp-skip.patch"
+        ],
+        "kernelsu-next": [
+          "x86_64-seccomp-skip.patch"
+        ],
+        "kernelsu-next-susfs": [
+          "x86_64-seccomp-skip.patch"
+        ],
+        "finasu": [
+          "finasu-preinit-runner-16k-pages.patch"
+        ]
+      }
+    },
+    {
       "id": "a14-api34-6.1",
       "label": "Android 14 (API 34)",
       "api_level": "34",
@@ -75,6 +98,29 @@
       }
     },
     {
+      "id": "a15-api35-ext15-6.6",
+      "label": "Android 15 (API 35-ext15; also API 35 16 KB)",
+      "api_level": "35",
+      "kmi": "android15-6.6",
+      "build_id": "12525588",
+      "kernel_release": "6.6.50-android15-8-g8adecb593e9b-ab12525588",
+      "probe_image": "x86_64-35-ext15_r01.zip",
+      "patches": {
+        "kernelsu": [
+          "x86_64-kcfi-icall-trampoline.patch"
+        ],
+        "kernelsu-next": [
+          "x86_64-kcfi-icall-trampoline.patch"
+        ],
+        "kernelsu-next-susfs": [],
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
+          "finasu-preinit-runner-16k-pages.patch"
+        ]
+      }
+    },
+    {
       "id": "a16-api36.0-6.6",
       "label": "Android 16 (API 36.0)",
       "api_level": "36",
@@ -82,6 +128,29 @@
       "build_id": "13070261",
       "kernel_release": "6.6.66-android15-8-gb66429556fb8-ab13070261",
       "probe_image": "x86_64-36_r07.zip",
+      "patches": {
+        "kernelsu": [
+          "x86_64-kcfi-icall-trampoline.patch"
+        ],
+        "kernelsu-next": [
+          "x86_64-kcfi-icall-trampoline.patch"
+        ],
+        "kernelsu-next-susfs": [],
+        "finasu": [
+          "finasu-x86_64-kcfi-icall-trampoline.patch",
+          "finasu-x86_64-kcfi-icall-v1.6.patch",
+          "finasu-preinit-runner-16k-pages.patch"
+        ]
+      }
+    },
+    {
+      "id": "a16-api36.0-16k-6.6",
+      "label": "Android 16 (API 36.0, 16 KB)",
+      "api_level": "36",
+      "kmi": "android15-6.6",
+      "build_id": "13812146",
+      "kernel_release": "6.6.66-android15-8-gd0c43a640eab-ab13812146",
+      "probe_image": "x86_64-playstore-ps16k-36_r07.zip",
       "patches": {
         "kernelsu": [
           "x86_64-kcfi-icall-trampoline.patch"
