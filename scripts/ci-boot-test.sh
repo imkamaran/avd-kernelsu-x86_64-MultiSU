@@ -139,7 +139,11 @@ hw.gpu.enabled=yes
 hw.gpu.mode=swiftshader_indirect
 fastboot.forceColdBoot=yes
 EOF
-"${ADB[@]}" start-server >/dev/null 2>&1 || true
+# Play Store images need adb authorization: the emulator installs ~/.android/adbkey.pub in the
+# guest at start, so the key must exist (and the server use it) before the first boot.
+[ -f "$HOME/.android/adbkey" ] || "$SDK/platform-tools/adb" keygen "$HOME/.android/adbkey" >/dev/null 2>&1
+"$SDK/platform-tools/adb" kill-server >/dev/null 2>&1 || true
+"$SDK/platform-tools/adb" start-server >/dev/null 2>&1
 
 # 2. Patch with the release, as a user would.
 RAMDISK=()
