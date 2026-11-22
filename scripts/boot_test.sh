@@ -3,6 +3,8 @@
 #
 #   scripts/boot_test.sh <target-id> <variant> [version]
 #
+# Variant "stock" boots the unpatched image (a baseline for the harness itself).
+#
 # Recreates the target's exact system image (its probe_image from Google's SDK repository) as an
 # AVD, patches it with avd-ksu.py from the published release (downloaded and hash-checked like a
 # user's run), cold boots it under KVM with the patched ramdisk and checks:
@@ -84,6 +86,9 @@ fastboot.forceColdBoot=yes
 EOF
 
 # 2. Patch with the release, as a user would (plus --allow-shell so adb can test su).
+if [ "$VARIANT" = stock ]; then
+  VER=-; RAMDISK=()
+else
 args=(patch --avd t --variant "$VARIANT" --out "$OUT/patched.img" --allow-shell)
 [ -n "$VERSION" ] && args+=(--version "$VERSION")
 [ -n "$PS16K" ] && [ "$VARIANT" = kernelsu-next-susfs ] && args+=(--force)
@@ -91,9 +96,11 @@ python3 "$ROOT/avd-ksu.py" "${args[@]}" 2>&1 | tee "$OUT/patch.log"
 TAG_REL=$(sed -n "s/^release: \($VARIANT-v[^ ]*\) .*/\1/p" "$OUT/patch.log" | head -1)
 VER=${TAG_REL#"$VARIANT"-}
 grep -q "target $TARGET " "$OUT/patch.log" || fail boot "avd-ksu.py matched another target"
+RAMDISK=(-ramdisk "$OUT/patched.img")
+fi
 
 # 3. Cold boot with the patched ramdisk.
-"$SDK/emulator/emulator" -avd t -ramdisk "$OUT/patched.img" -no-window -no-audio -no-boot-anim \
+"$SDK/emulator/emulator" -avd t ${RAMDISK[@]+"${RAMDISK[@]}"} -no-window -no-audio -no-boot-anim \
   -no-snapshot -wipe-data -gpu swiftshader_indirect -accel on -skip-adb-auth -show-kernel \
   > "$OUT/emulator.log" 2>&1 &
 EMU=$!
@@ -105,12 +112,23 @@ for _ in $(seq 1 $((BOOT_TIMEOUT / 5))); do
   sleep 5
 done
 grep -aE "KernelSU|kernelsu|susfs|preinit|Kernel panic|exitcode=" "$OUT/emulator.log" > "$OUT/kernel-ksu.log" || true
+diag() {
+  echo "::group::diagnostics: adb devices, getprop, kernel log lines, emulator.log tail"
+  "$SDK/platform-tools/adb" devices -l || true
+  "${ADB[@]}" shell getprop 2>/dev/null | grep -E "boot|init.svc.(zygote|bootanim)|sys.usb" | head -20 || true
+  head -c 20000 "$OUT/kernel-ksu.log" || true
+  echo "----- emulator.log (last 120 lines)"
+  tail -n 120 "$OUT/emulator.log" | cut -c1-300 || true
+  echo "::endgroup::"
+}
 [ -n "$booted" ] || {
+  diag
   kill -0 $EMU 2>/dev/null && why="not booted after ${BOOT_TIMEOUT}s" || why="emulator exited"
   grep -aq "Kernel panic" "$OUT/emulator.log" && why+=", kernel panic"
   fail boot "$why (see emulator.log)"
 }
 R[boot]=pass
+[ "$VARIANT" = stock ] && exit 0
 [ "$("${ADB[@]}" shell uname -r | tr -d '\r')" = "$KREL" ] || NOTES+=("uname -r differs from $KREL")
 
 # 4. Root from the shell.

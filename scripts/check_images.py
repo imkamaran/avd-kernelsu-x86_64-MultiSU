@@ -137,6 +137,8 @@ def main():
         t = by_rel.get(rel) or next((t for t in targets if rel.endswith("-ab" + t["build_id"])), None)
         if t:
             note = t["id"] + ("" if url == t["probe_image"] else f" (probe image is {t['probe_image']})")
+        elif "beta" in api:
+            note = "not covered (beta image, informational)"
         else:
             note = "**not covered**"
             missing += 1

@@ -9,7 +9,7 @@ on:
       variant:
         description: Variant to test, or "all" (each at its latest release)
         type: choice
-        options: [all, kernelsu, kernelsu-next, kernelsu-next-susfs, finasu]
+        options: [all, kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, stock]
         default: all
       version:
         description: Release version to test (single variant only; default the latest release)
