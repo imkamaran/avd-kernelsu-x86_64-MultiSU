@@ -193,6 +193,14 @@ pkg=$(comm -13 <(echo "$before") <("${ADB[@]}" shell pm list packages -3 | tr -d
 open_manager "$pkg" || NOTES+=("manager did not reach the foreground")
 "${ADB[@]}" exec-out screencap -p > "$OUT/manager-boot1.png" 2>/dev/null || true
 echo "boot 1 ksud: $(rootsh 'ls -l /data/adb/ksud')" | tee -a "$OUT/checks.log"
+# 16 KB images with KernelSU-Next: the manager's ksud cannot run, so follow the README and
+# install the release's 16 KB aligned ksud (patch enabled --allow-shell for it).
+if grep -q "avd-ksu.py ksud" "$OUT/patch.log"; then
+  KNOWN_16K=
+  python3 "$ROOT/avd-ksu.py" ksud --serial emulator-5554 --variant "$VARIANT" --version "$VER" 2>&1 | tee "$OUT/ksud16k.log" \
+    || fail manager "avd-ksu.py ksud failed (see ksud16k.log)"
+  NOTES+=("16 KB: ksud from avd-ksu.py ksud")
+fi
 
 # 4. Boot 2: cold restart, as the README tells users.
 stop_emu

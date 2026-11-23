@@ -223,28 +223,41 @@ jobs:
           - { triple: aarch64-unknown-linux-musl, os: ubuntu-latest }
           - { triple: x86_64-apple-darwin, os: macos-latest }
           - { triple: aarch64-apple-darwin, os: macos-latest }
+          # On-device ksud for KernelSU-Next's 16 KB images: the manager APK's libksud.so is
+          # 4 KB aligned and cannot run there; `avd-ksu.py ksud` installs this one instead.
+          - { triple: x86_64-linux-android, os: ubuntu-latest }
     runs-on: ${{ matrix.os }}
     name: ksud (${{ matrix.triple }})
+    env:
+      # BakaSU's ksud uses nightly-only features (its CI builds with the nightly toolchain).
+      RUST_TC: ${{ (inputs.variant || 'kernelsu') == 'bakasu' && 'nightly' || 'stable' }}
     steps:
       - uses: actions/checkout@v4
+        if: matrix.triple != 'x86_64-linux-android' || startsWith(inputs.variant || 'kernelsu', 'kernelsu-next')
         with:
           repository: ${{ needs.setup.outputs.upstream }}
           ref: ${{ inputs.ref || 'v3.3.1' }}
           fetch-depth: 0          # ksud version = 30000 + commit count
       - name: Setup Rust
+        if: matrix.triple != 'x86_64-linux-android' || startsWith(inputs.variant || 'kernelsu', 'kernelsu-next')
         run: |
           rustup update stable
-          rustup target add ${{ matrix.triple }}
+          [ "$RUST_TC" = stable ] || rustup toolchain install "$RUST_TC" --profile minimal
+          rustup target add ${{ matrix.triple }} --toolchain "$RUST_TC"
           RUSTFLAGS="" cargo install cross --git https://github.com/cross-rs/cross --rev 66845c1
       - name: Assemble LKM bootstrap
+        if: matrix.triple != 'x86_64-linux-android' || startsWith(inputs.variant || 'kernelsu', 'kernelsu-next')
         run: |
           if [ -f userspace/ksud/src/lkm_image_bootstrap.S ]; then
             clang --target=aarch64-linux-gnu -c -nostdlib \
               -o userspace/ksud/.lkm_image_bootstrap.o userspace/ksud/src/lkm_image_bootstrap.S
           fi
       - name: Build ksud
+        if: matrix.triple != 'x86_64-linux-android' || startsWith(inputs.variant || 'kernelsu', 'kernelsu-next')
         run: |
-          CROSS_NO_WARNINGS=0 cross build --target ${{ matrix.triple }} --release --manifest-path ./userspace/ksud/Cargo.toml
+          # 16 KB page alignment (also loads on 4 KB kernels); cross passes RUSTFLAGS through.
+          if [ "${{ matrix.triple }}" = x86_64-linux-android ]; then export RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"; fi
+          CROSS_NO_WARNINGS=0 cross +"$RUST_TC" build --target ${{ matrix.triple }} --release --manifest-path ./userspace/ksud/Cargo.toml
           mkdir -p dist
           ext=""; [ "${{ matrix.triple }}" = x86_64-pc-windows-gnu ] && ext=.exe
           # FinaSU is a cargo workspace, so the binary lands in the workspace-root target/,
@@ -252,7 +265,14 @@ jobs:
           ksud=$(find "$GITHUB_WORKSPACE" -path "*/${{ matrix.triple }}/release/ksud$ext" -type f | head -1)
           [ -n "$ksud" ] || { echo "::error::ksud binary not found after build"; exit 1; }
           cp "$ksud" "dist/ksud-${{ matrix.triple }}$ext"
+          if [ "${{ matrix.triple }}" = x86_64-linux-android ]; then
+            readelf -lW "$ksud" | awk '$1 == "LOAD" { print $NF }' | while read -r a; do
+              [ $((a)) -ge 16384 ] || { echo "::error::android ksud LOAD align $a < 16 KB"; exit 1; }
+            done
+            echo "android ksud: LOAD segments 16 KB aligned"
+          fi
       - uses: actions/upload-artifact@v4
+        if: matrix.triple != 'x86_64-linux-android' || startsWith(inputs.variant || 'kernelsu', 'kernelsu-next')
         with:
           name: host-tools-ksud-${{ matrix.triple }}
           path: dist/*

@@ -10,6 +10,7 @@ this repository's GitHub Releases, together with host ksud binaries.
   python avd-ksu.py restore --avd <name>
   python avd-ksu.py status --avd <name>
   python avd-ksu.py susfs  [--serial emulator-5554] [--version V] [--legacy] [--remove]   (kernelsu-next-susfs only)
+  python avd-ksu.py ksud   [--serial S] [--variant kernelsu-next|kernelsu-next-susfs] [--version V]  (16 KB images)
 
 Standard library only. Python 3.8+.
 """
@@ -320,14 +321,25 @@ def cmd_patch(a):
     t = match_target(targets, rel)
     print(f"kernel {rel} -> target {t['id']} (KMI {t['kmi']})")
     cmdline = img / "kernel_cmdline.txt"
+    ksud16k = False
     if a.variant.startswith("kernelsu-next") and cmdline.exists() and "page_shift=14" in cmdline.read_text():
-        which = "KernelSU-Next v3.4.2's manager" if a.variant == "kernelsu-next" else \
+        which = "KernelSU-Next's manager" if a.variant == "kernelsu-next" else \
             "The KernelSU-Next manager attached to this preview"
-        msg = (f"this is a 16 KB page-size image. {which} ships a ksud that is not 16 KB aligned, "
-               "so root will not activate (KernelSU works).")
-        if a.variant == SUSFS_VARIANT and not a.force:
-            die(msg + " Pass --force to patch it anyway.")
-        print(f"warning: {msg} Continuing anyway.")
+        if android_ksud_name(a.variant, assets.version) in assets.files:
+            # The release has a 16 KB aligned on-device ksud; `ksud` installs it from adb shell,
+            # which needs the shell allowed to become root.
+            ksud16k = True
+            if not a.allow_shell:
+                a.allow_shell = True
+                print(f"16 KB page-size image: {which} ships a ksud that cannot run here. Patching with "
+                      "--allow-shell so `avd-ksu.py ksud` can install this release's 16 KB aligned ksud "
+                      "after the first boot.")
+        else:
+            msg = (f"this is a 16 KB page-size image. {which} ships a ksud that is not 16 KB aligned, "
+                   "and this release has no on-device ksud to replace it, so root will not activate.")
+            if a.variant == SUSFS_VARIANT and not a.force:
+                die(msg + " Pass --force to patch it anyway.")
+            print(f"warning: {msg} Continuing anyway.")
 
     v = assets.version
     ko = Path(a.ko) if a.ko else assets.get(f"{t['id']}_{a.variant}-{v}_kernelsu.ko")
@@ -355,6 +367,8 @@ def cmd_patch(a):
             print(f"\nwrote {a.out}\nNext steps:\n"
                   f"  1. emulator -avd <name> -ramdisk \"{a.out}\" -no-snapshot-load\n"
                   f"  2. Install and open {manager_hint(a.variant, assets.version)}.\n"
+                  + (f"     16 KB image: then run `python avd-ksu.py ksud --variant {a.variant} --version {v}`.\n"
+                     if ksud16k else "") +
                   "  3. Close the emulator and start it again with the same command "
                   "(avoid in-guest reboot: Emulator 37.2.13 can crash on it).")
             return
@@ -369,8 +383,47 @@ def cmd_patch(a):
           "Every AVD using this system image is affected. Next steps:\n"
           "  1. Cold boot the AVD (Device Manager > Cold Boot Now, or emulator -no-snapshot-load).\n"
           f"  2. Install and open {manager_hint(a.variant, v)}, then close the emulator\n"
+          + (f"     (16 KB image: run `python avd-ksu.py ksud --variant {a.variant} --version {v}` first)\n"
+             if ksud16k else "") +
           "     and cold-boot it again (avoid in-guest reboot: Emulator 37.2.13 can crash on it).\n"
           "  3. Undo any time with: python avd-ksu.py restore --avd <name>")
+
+
+def android_ksud_name(variant, version):
+    return f"ksud-{variant}-{version}-x86_64-linux-android"
+
+
+def cmd_ksud(a):
+    """Install the release's on-device ksud (16 KB aligned) as /data/adb/ksud on a running AVD.
+    For KernelSU-Next on 16 KB page-size images, whose manager's libksud.so cannot run there:
+    without /data/adb/ksud there is no `su` and no boot stages. The AVD must have been patched
+    with --allow-shell (`patch` does that on 16 KB images): this ksud makes itself root as `su`
+    from adb shell, then copies itself into place (`ksud install`)."""
+    adb = adb_cmd(a.serial)
+
+    def run(*args):
+        r = subprocess.run(adb + list(args), capture_output=True, text=True)
+        if r.returncode != 0:
+            die(f"adb {' '.join(args)} failed: {(r.stderr or r.stdout).strip()}")
+        return r.stdout.replace("\r", "")
+
+    assets = Assets(a.variant, a.version, a.assets_dir)
+    name = android_ksud_name(a.variant, assets.version)
+    if name not in assets.files:
+        die(f"{a.variant} {assets.version} has no on-device ksud ({name}); use a newer release")
+    tmp = "/data/local/tmp/avd-ksu"
+    run("shell", f"rm -rf {tmp} && mkdir -p {tmp}")
+    run("push", str(assets.get(name)), f"{tmp}/ksud")
+    out = run("shell", f"chmod 755 {tmp}/ksud && ln -sf ksud {tmp}/su && "
+                       f"{tmp}/su -c '{tmp}/ksud install && /data/adb/ksud --version'; "
+                       f"rc=$?; rm -rf {tmp}; echo rc=$rc").strip()
+    print(out)
+    if not out.endswith("rc=0"):
+        die("ksud did not get root from adb shell: patch the AVD again with --allow-shell "
+            "(`patch` adds it on 16 KB images), cold boot it, and retry")
+    print("installed /data/adb/ksud. Close the emulator and start it again (cold boot) so its boot "
+          "stages run; `su` and the manager's root then work. The manager's own module page uses "
+          "its libksud.so and may still fail on 16 KB images.")
 
 
 def adb_cmd(serial):
@@ -498,6 +551,12 @@ def main():
             p.add_argument("--assets-dir", help=argparse.SUPPRESS)  # local release assets (testing)
             p.add_argument("--ko", help=argparse.SUPPRESS)
             p.add_argument("--ksud", help=argparse.SUPPRESS)
+    p = sub.add_parser("ksud", help="install the release's 16 KB aligned ksud on a running KernelSU-Next AVD "
+                                    "(16 KB page-size images)")
+    p.add_argument("--serial", help="adb serial, e.g. emulator-5554 (default: the only device)")
+    p.add_argument("--variant", choices=("kernelsu-next", SUSFS_VARIANT), default="kernelsu-next")
+    p.add_argument("--version", help="release version (default: latest); use the one the AVD was patched with")
+    p.add_argument("--assets-dir", help=argparse.SUPPRESS)
     p = sub.add_parser("susfs", help="install the SUSFS guard LKM on a running kernelsu-next-susfs AVD")
     p.add_argument("--serial", help="adb serial, e.g. emulator-5554 (default: the only device)")
     p.add_argument("--avd", help="--legacy only: match the AVD's kernel-ranchu instead of `uname -r`")
@@ -512,7 +571,7 @@ def main():
     p.add_argument("--ko", help=argparse.SUPPRESS)
     a = ap.parse_args()
     {"list": cmd_list, "patch": cmd_patch, "restore": cmd_restore, "status": cmd_status,
-     "susfs": cmd_susfs}[a.cmd](a)
+     "susfs": cmd_susfs, "ksud": cmd_ksud}[a.cmd](a)
 
 
 if __name__ == "__main__":

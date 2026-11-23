@@ -624,6 +624,18 @@ class Handler(BaseHTTPRequestHandler):
         what = "Remove" if b.get("remove") else "Install"
         return avd_ksu_job(f"{what} SUSFS on {serial}", args, override, meta={"action": "susfs", "serial": serial}).view()
 
+    def api_ksud(self, q):
+        b = self._body()
+        serial = need_serial(b.get("serial"))
+        variant = need_variant(b.get("variant"))
+        if not variant.startswith("kernelsu-next"):
+            raise Fail("the 16 KB ksud is for kernelsu-next and kernelsu-next-susfs")
+        args = ["ksud", "--serial", serial, "--variant", variant]
+        if b.get("version"):
+            args += ["--version", need_version(b["version"])]
+        return avd_ksu_job(f"Install the 16 KB ksud on {serial}", args, repo_override(b.get("repo")),
+                           meta={"action": "ksud", "serial": serial}).view()
+
     def api_emulator_start(self, q):
         b = self._body()
         return start_emulator(need_avd(b.get("avd")), b.get("image") or None,
@@ -686,6 +698,7 @@ ROUTES = {
     ("POST", "/api/status"): Handler.api_status,
     ("POST", "/api/restore"): Handler.api_restore,
     ("POST", "/api/susfs"): Handler.api_susfs,
+    ("POST", "/api/ksud"): Handler.api_ksud,
     ("POST", "/api/emulator/start"): Handler.api_emulator_start,
     ("POST", "/api/emulator/stop"): Handler.api_emulator_stop,
     ("POST", "/api/devices/check"): Handler.api_check,

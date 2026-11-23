@@ -14,14 +14,14 @@ const VARIANTS = {
   "kernelsu-next": {
     label: "KernelSU-Next",
     manager: (v) => `https://github.com/KernelSU-Next/KernelSU-Next/releases/tag/${v}`,
-    note: "KernelSU-Next. Install the KernelSU-Next manager of the same version. On 16 KB images its ksud is not 16 KB aligned, so root does not activate.",
-    ok16k: false,
+    note: "KernelSU-Next. Install the KernelSU-Next manager of the same version. On 16 KB images its manager's ksud cannot run: after the first boot use “Install 16 KB ksud”, then cold-boot again.",
+    ok16k: "ksud",
   },
   "kernelsu-next-susfs": {
     label: "KernelSU-Next + SUSFS (preview)",
     manager: (v, rel) => (rel && rel.url) || "https://github.com/imkamaran/avd-kernelsu-x86_64-MultiSU/releases",
-    note: "Preview builds (prereleases) of the susfs-x64-avd branch of leemikepop/KernelSU-Next. Install the manager APK attached to the same release, then use “Install SUSFS module” on the rooted AVD. No root on 16 KB images.",
-    ok16k: false,
+    note: "Preview builds (prereleases) of the susfs-x64-avd branch of leemikepop/KernelSU-Next. Install the manager APK attached to the same release, then use “Install SUSFS module” on the rooted AVD. On 16 KB images use “Install 16 KB ksud” after the first boot and cold-boot again first.",
+    ok16k: "ksud",
     susfs: true,
   },
   finasu: {
@@ -221,6 +221,8 @@ function updateState() {
   $("apk").disabled = !booted;
   $("apk").parentElement.toggleAttribute("aria-disabled", !booted);
   $("susfs-actions").hidden = !VARIANTS[v]?.susfs;
+  $("ksud16k-actions").hidden = !(VARIANTS[v]?.ok16k === "ksud" && a.page_kb === 16);
+  $("do-ksud16k").disabled = !booted || busy;
   $("do-susfs").disabled = $("do-susfs-remove").disabled = !booted || busy;
   $("device-state").textContent = !dev
     ? "Not running."
@@ -239,7 +241,8 @@ function updateNotes() {
   link.textContent = `Get the ${info.label || v} manager${version() ? " " + version() : ""}`;
   const warn = [];
   if (a && !a.target && !a.error) warn.push(`No prebuilt module for kernel ${a.kernel}. Update the system image in SDK Manager (Google Play x86_64), or pick another AVD.`);
-  if (a && a.page_kb === 16 && info.ok16k === false) warn.push(`This is a 16 KB page-size image: ${info.label} root does not activate here${v === "kernelsu-next-susfs" ? " (patching it needs Force)" : ""}. KernelSU works on 16 KB images.`);
+  if (a && a.page_kb === 16 && info.ok16k === false) warn.push(`This is a 16 KB page-size image: ${info.label} root does not activate here.`);
+  if (a && a.page_kb === 16 && info.ok16k === "ksud") warn.push(`16 KB page-size image: ${info.label}'s manager ksud cannot run here. Patching enables shell root; after the first boot click “Install 16 KB ksud”, then cold-boot again.`);
   $("patch-warn").hidden = !warn.length;
   $("patch-warn").textContent = warn.join(" ");
 }
@@ -426,6 +429,15 @@ async function doSusfs(remove) {
   } catch (e) { fail(e); }
 }
 
+async function doKsud16k() {
+  const dev = deviceOf(S.sel);
+  if (!dev) return;
+  try {
+    const j = await followJob(await api("/api/ksud", { body: { serial: dev.serial, variant: variant(), version: version() || undefined, repo: repo() || undefined } }));
+    if (j) toast(j.state === "ok" ? "ksud installed: stop the AVD and cold-boot it again." : "Installing ksud failed: see Activity", j.state !== "ok");
+  } catch (e) { fail(e); }
+}
+
 async function doDeleteImage() {
   const file = $("image").value;
   if (!file || !confirm(`Delete ${file}?`)) return;
@@ -509,6 +521,7 @@ function init() {
   $("do-check").onclick = doCheck;
   $("apk").onchange = (e) => { doInstall(e.target.files[0]); e.target.value = ""; };
   $("do-susfs").onclick = () => doSusfs(false);
+  $("do-ksud16k").onclick = doKsud16k;
   $("do-susfs-remove").onclick = () => doSusfs(true);
   $("job-select").onchange = (e) => showJob(e.target.value);
   $("copy-log").onclick = () => navigator.clipboard.writeText($("console").textContent)
