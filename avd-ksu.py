@@ -400,8 +400,8 @@ def cmd_ksud(a):
     """Install the release's on-device ksud (16 KB aligned) as /data/adb/ksud on a running AVD.
     For KernelSU-Next on 16 KB page-size images, whose manager's libksud.so cannot run there:
     without /data/adb/ksud there is no `su` and no boot stages. The AVD must have been patched
-    with --allow-shell (`patch` does that on 16 KB images): this ksud makes itself root as `su`
-    from adb shell, then copies itself into place (`ksud install`)."""
+    with --allow-shell (`patch` does that on 16 KB images): this ksud gets root from adb shell
+    (`ksud debug su`), then copies itself into place (`ksud install`)."""
     adb = adb_cmd(a.serial)
 
     def run(*args):
@@ -417,8 +417,12 @@ def cmd_ksud(a):
     tmp = "/data/local/tmp/avd-ksu"
     run("shell", f"rm -rf {tmp} && mkdir -p {tmp}")
     run("push", str(assets.get(name)), f"{tmp}/ksud")
-    out = run("shell", f"chmod 755 {tmp}/ksud && ln -sf ksud {tmp}/su && "
-                       f"{tmp}/su -c '{tmp}/ksud install && /data/adb/ksud --version'; "
+    # `ksud debug su` asks the kernel for root (KSU_IOCTL_GRANT_ROOT: allowed for the shell with
+    # allow_shell=1) and runs a root shell, which reads the install commands from stdin. (Its `su`
+    # mode would not: it expects the kernel to have escalated the exec of /system/bin/su already,
+    # which needs /data/adb/ksud to exist.)
+    out = run("shell", f"chmod 755 {tmp}/ksud && "
+                       f"echo '{tmp}/ksud install && /data/adb/ksud --version' | {tmp}/ksud debug su 2>&1; "
                        f"rc=$?; rm -rf {tmp}; echo rc=$rc").strip()
     print(out)
     if not out.endswith("rc=0"):
