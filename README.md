@@ -1,8 +1,8 @@
 # KernelSU LKM for Android Studio AVDs (x86_64)
 
 Root a **stock** Android Studio emulator image with [KernelSU](https://github.com/tiann/KernelSU),
-[KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) or
-[FinaSU](https://github.com/LyraVoid/FinaSU) in LKM mode. The kernel is never replaced:
+[KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next),
+[FinaSU](https://github.com/LyraVoid/FinaSU) or [BakaSU](https://github.com/Baka-SU/BakaSU) in LKM mode. The kernel is never replaced:
 only the system image's `ramdisk.img` is patched to load `kernelsu.ko` at boot.
 
 > Looking for the old approach that rebuilds the whole GKI kernel (`bzImage`), or for arm64 hosts?
@@ -33,14 +33,18 @@ named in that kernel's Android CI build manifest, with the kernel's own config (
 
 The 16 KB images (`google_apis_playstore_ps16k`) boot with `page_shift=14`, most of them the same kernel
 binary as a 4 KB image (API 36.0 16 KB has its own build).
-**KernelSU-Next v3.4.2 does not work on 16 KB images**: its manager APK ships `libksud.so` (the
-`/data/adb/ksud` binary) without 16 KB-aligned LOAD segments, so ksud is never installed. The module itself
-loads fine. KernelSU v3.3.1 works on 16 KB images.
+**KernelSU-Next on 16 KB images needs one extra step**: its manager APK ships `libksud.so` (the
+`/data/adb/ksud` binary) without 16 KB-aligned LOAD segments, so the manager cannot install ksud there
+and there is no `su`. This repository's KernelSU-Next and SUSFS releases attach a 16 KB aligned on-device
+ksud: after the first boot run `python avd-ksu.py ksud --variant kernelsu-next` (or the GUI's *Install
+16 KB ksud*), then cold-boot again. `patch` enables `--allow-shell` on these images for that step.
+KernelSU, FinaSU and BakaSU work on 16 KB images as they are.
 
 x86_64 `google_apis_playstore` (and `_ps16k`) images at their latest SDK revision; the **Boot test**
 workflow checks this list against Google's repository (see [Workflows](#workflows)). Other image types
 (`google_apis`, `default`) may ship a different kernel; `avd-ksu.py list` shows yours and `patch`
-refuses kernels that are not in the table. Minimum upstream versions: **KernelSU v3.3.0**, **KernelSU-Next v3.4.0**, **FinaSU v1.5.0**.
+refuses kernels that are not in the table. Minimum upstream versions: **KernelSU v3.3.0**, **KernelSU-Next v3.4.0**, **FinaSU v1.5.0**,
+**BakaSU v4.2.0-rc3**.
 
 ## Usage
 
@@ -112,6 +116,39 @@ Tips:
   new kernel, and `patch` refuses kernels it has no module for.
 - For Android 16 API 36.1 with LSPosed/Zygisk, give the AVD at least 4096 MB RAM.
 
+### Starting the AVD: proxy, DNS and other options
+
+`avd-ksu.py start` starts an AVD with the patched ramdisk and any of these emulator options (the GUI
+has the same list under *Start options*, with saved profiles). Every value is checked before the
+emulator runs; `--dry-run` prints the command only and `--detach` returns once it is started.
+
+```sh
+# rooted, through an intercepting proxy (Burp, mitmproxy) on this computer, with Cloudflare DNS
+python avd-ksu.py start --avd API35-GAPPS --ramdisk ksu-API35.img --cold \
+    --proxy http://127.0.0.1:8080 --dns 1.1.1.1,1.0.0.1
+# headless with more RAM and cores, a slow network, German locale
+python avd-ksu.py start --avd API35-GAPPS --ramdisk ksu-API35.img --headless --memory 6144 --cores 6 \
+    --netspeed edge --netdelay edge --locale de-DE --timezone Europe/Berlin
+# any other emulator option after --
+python avd-ksu.py start --avd API35-GAPPS --dry-run -- -camera-back webcam0 -feature -Vulkan
+```
+
+| Option | Emulator flag | |
+| :--- | :--- | :--- |
+| `--proxy http://[user:pass@]host:port` | `-http-proxy` | all guest HTTP(S) traffic through that proxy, as seen from this computer |
+| `--dns a,b` | `-dns-server` | up to four DNS servers (IPv4, IPv6 or host names) |
+| `--netspeed`, `--netdelay` | `-netspeed`, `-netdelay` | `full`, `lte`, `hsdpa`, `umts`, `edge`, `gprs`, `gsm` … |
+| `--cold`, `--no-snapshot-save`, `--no-snapshot` | `-no-snapshot-load`, … | Quick Boot snapshot handling (keep `--cold` while setting up root) |
+| `--wipe` | `-wipe-data` | factory reset before booting |
+| `--headless`, `--no-boot-anim`, `--no-audio`, `--show-kernel` | `-no-window`, … | window, boot animation, audio, kernel log |
+| `--gpu`, `--memory`, `--cores`, `--partition-size` | `-gpu`, `-memory`, `-cores`, `-partition-size` | performance |
+| `--timezone`, `--locale` | `-timezone`, `-change-locale` | e.g. `Europe/Berlin`, `en-US` |
+| `--camera-back`, `--camera-front`, `--writable-system`, `--port` | … | hardware and advanced |
+
+For an HTTPS-intercepting proxy the guest must trust its CA. With root, install the proxy's CA as a
+system certificate (for example with a KernelSU module) rather than as a user certificate, which apps
+ignore by default.
+
 ### Alternative: patch the SDK ramdisk in place
 
 Without `--out`, `patch` replaces the SDK `ramdisk.img` (original kept as `ramdisk.img.stock`), so the AVD
@@ -149,7 +186,8 @@ repository) and the SDK in `%LOCALAPPDATA%\Android\Sdk` (or `ANDROID_SDK_ROOT`).
 
 Prefer clicking to typing? [`GUI/`](GUI/) is a local web control panel on top of `avd-ksu.py`
 (Python standard library only): it lists your AVDs and their kernels, lets you pick the root
-solution and version, patches (separately or in place), boots, checks root, installs the manager
+solution and version, patches (separately or in place), boots with any start options (proxy, DNS,
+network speed, headless, RAM/CPU, locale … and saved start profiles), checks root, installs the manager
 APK and shows every command's output. Start it with `GUI\start-gui.bat` (Windows),
 `./GUI/start-gui.sh` or `python GUI/server.py --open`, then open http://127.0.0.1:8765/.
 See [GUI/README.md](GUI/README.md).
@@ -205,7 +243,7 @@ as seen by an app, `uname` spoofing):
 | :--- | :--- |
 | A15 (API 35), A16 (API 36.0), A16 QPR (API 36.1), A17 (API 37.0) | everything works |
 | A13 (API 33), A14 (API 34) | root and SUSFS load, but only partial hiding: `stat`/`open`/`access`/`statx` return `ENOENT`, while `O_PATH` opens, `mkdir` (`EEXIST`) and directory listings still reveal the path. These kernels have no IBT, and SUSFS's x86_64 syscall hooks need an `endbr64`/`__fentry__` landing pad, so its opath, kstat and create layers stay off |
-| 16 KB images (API 37.1, API 37.2) | no root: the manager's `libksud.so` is only 4 KB aligned, so `/data/adb/ksud` is never installed (the same limitation as KernelSU-Next v3.4.2). The module loads and the AVD boots |
+| 16 KB images (API 35, 36.0, 37.1, 37.2) | the manager's `libksud.so` is only 4 KB aligned and cannot install `/data/adb/ksud`: run `python avd-ksu.py ksud --variant kernelsu-next-susfs` after the first boot (it installs the release's 16 KB aligned ksud), cold-boot again, then `susfs` works as above |
 
 ### FinaSU (`finasu`)
 
@@ -257,10 +295,35 @@ Notes:
 - FinaSU's SUSFS and other hiding features are kernel-capability-gated and share the x86_64
   syscall-hook limitations described above for the older AVD kernels (A13/A14) and the 16 KB images.
 
+### BakaSU (`bakasu`)
+
+[BakaSU](https://github.com/Baka-SU/BakaSU) (formerly ReSukiSU) is a KernelSU downstream with a themed
+manager, a built-in SUSFS management tool and multi-manager support. Its `kernel/` has the same
+x86_64 tracepoint hooks and syscall dispatcher, so it builds per AVD like the others, with the options
+its own DDK workflow uses (`CONFIG_KSU_TRACEPOINT_HOOK=y CONFIG_KSU_MULTI_MANAGER_SUPPORT=y`); `ksud` /
+`ksuinit` are built from source (BakaSU publishes no host binaries; its `ksud` needs nightly Rust).
+
+```sh
+python avd-ksu.py patch --avd API35-GAPPS --variant bakasu --out baka-API35.img
+python avd-ksu.py start --avd API35-GAPPS --ramdisk baka-API35.img --cold
+```
+
+Then install and open the BakaSU manager of the same version from BakaSU's
+[releases](https://github.com/Baka-SU/BakaSU/releases) (the `*-x86_64-release.apk` or the universal
+APK), and cold-boot again. BakaSU's newest release with manager APKs is the release candidate
+**v4.2.0-rc3** (the stable v4.1.0 tag has no binaries), so `bakasu-*` releases here are pre-releases
+too; `avd-ksu.py` picks the newest one. The module trusts BakaSU's (ReSukiSU's) manager key and, with
+multi-manager support, the official KernelSU manager as well.
+
+On the 6.x kernels `bakasu` applies
+[`bakasu-x86_64-kcfi-icall-trampoline.patch`](patches/bakasu-x86_64-kcfi-icall-trampoline.patch), the
+BakaSU port of the kCFI call trampoline (19 call sites); A13/A14 use the same
+`x86_64-seccomp-skip.patch` / `x86_64-do_syscall_64-fallback.patch` as KernelSU.
+
 ## Releases
 
 Each release corresponds to one upstream version and is tagged `<variant>-<version>`, e.g.
-`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.7.0`. Assets:
+`kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`, `finasu-v1.7.0`, `bakasu-v4.2.0-rc3`. Assets:
 
 | Asset | Content |
 | :--- | :--- |
@@ -269,6 +332,7 @@ Each release corresponds to one upstream version and is tagged `<variant>-<versi
 | `susfs-module-kernelsu-next-susfs-<version>.zip` | the same LKMs as a KernelSU module that loads the matching one at boot (`kernelsu-next-susfs` only) |
 | `KernelSU_Next_*.apk` | official upstream CI manager build (`kernelsu-next-susfs` only) |
 | `ksud-<variant>-<version>-<triple>[.exe]` | host `ksud` (Windows, Linux, macOS) used for `boot-patch` |
+| `ksud-<variant>-<version>-x86_64-linux-android` | on-device `ksud`, 16 KB aligned, for `avd-ksu.py ksud` (`kernelsu-next`, `kernelsu-next-susfs`) |
 | `ksuinit-x86_64-<variant>-<version>` | `ksuinit` placed into the ramdisk as `/init` |
 | `avd-targets.json`, `avd-ksu.py`, `SHA256SUMS` | target list, patch tool, checksums |
 | `check-root.bat` | Windows: patch, cold boot and root check in one go ([details](#windows-check-rootbat)) |
@@ -396,8 +460,10 @@ loading; partial hiding on A13/A14 is described under
 ## Credits
 
 - Forked from [leemikepop/avd-kernelsu-x86_64](https://github.com/leemikepop/avd-kernelsu-x86_64), which
-  built the per-AVD KernelSU / KernelSU-Next pipeline and the SUSFS preview; this fork adds FinaSU.
+  built the per-AVD KernelSU / KernelSU-Next pipeline and the SUSFS preview; this fork adds FinaSU and
+  BakaSU.
 - [FinaSU](https://github.com/LyraVoid/FinaSU) by LyraVoid.
+- [BakaSU](https://github.com/Baka-SU/BakaSU) by the Baka-SU team.
 - [5ec1cff, "在 AVD 上使用 KernelSU"](https://5ec1cff.github.io/my-blog/2024/01/16/avd-ksu/) and the
   x86_64 LKM work in KernelSU [#3562](https://github.com/tiann/KernelSU/pull/3562) / [#3570](https://github.com/tiann/KernelSU/pull/3570).
 - [nzaar9/avd-kernelsu](https://github.com/nzaar9/avd-kernelsu) for early release packaging ideas.
