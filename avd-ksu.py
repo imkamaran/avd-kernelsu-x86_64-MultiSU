@@ -463,7 +463,10 @@ def cmd_susfs(a):
     # release ksud ("3.4.2", "3.3.1") means the AVD runs a regular kernelsu.ko, which this
     # module was not built against.
     ksud_ver = run("shell", "su -c '/data/adb/ksud --version'").strip()
-    if not a.remove and not a.force and not re.search(r"-\d+-g[0-9a-f]+", ksud_ver):
+    # A dev build reports "3.4.2-100-ga6c81fa4", or only its commit ("2eed7e95") when built from a
+    # checkout without tags, like this release's 16 KB ksud (`avd-ksu.py ksud`).
+    dev_build = re.search(r"-\d+-g[0-9a-f]+", ksud_ver) or re.match(r"(?:ksud )?[0-9a-f]{7,40}(?:\s|$)", ksud_ver)
+    if not a.remove and not a.force and not dev_build:
         die(f"/data/adb/ksud reports {ksud_ver!r}: this AVD looks rooted with a regular release. "
             f"Patch it with --variant {SUSFS_VARIANT} and install that release's manager, "
             "or pass --force.")

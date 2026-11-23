@@ -1,0 +1,45 @@
+name: Update release scripts
+
+# Replace only the scripts attached to published releases (avd-ksu.py, check-root.bat) with this
+# commit's copies and fix their SHA256SUMS lines. The modules and binaries stay as they are, so a
+# script fix reaches users without rebuilding (and re-testing) a release.
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Release tags, space-separated, or "current" (the newest release of each variant)
+        default: current
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          set -euo pipefail
+          if [ "$TAGS" = current ]; then
+            # newest release (pre-releases included) per variant prefix
+            TAGS=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.draft | not) | .tag_name' |
+              awk '{ v = $0; sub(/-v[0-9].*$/, "", v); if (!(v in seen)) { seen[v] = 1; print } }' | tr '\n' ' ')
+          fi
+          echo "releases: $TAGS"
+          for tag in $TAGS; do
+            echo "== $tag"
+            rm -rf rel && mkdir rel
+            gh release download "$tag" -p SHA256SUMS -D rel
+            cp avd-ksu.py scripts/check-root.bat rel/
+            (cd rel
+             for f in avd-ksu.py check-root.bat; do
+               grep -v "[ *]$f\$" SHA256SUMS > s.tmp || true
+               sha256sum "$f" >> s.tmp
+               mv s.tmp SHA256SUMS
+             done
+             cat SHA256SUMS)
+            gh release upload "$tag" rel/avd-ksu.py rel/check-root.bat rel/SHA256SUMS --clobber
+          done
