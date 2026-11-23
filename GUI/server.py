@@ -37,6 +37,8 @@ STATIC = HERE / "static"
 OUT = HERE / "out"            # patched ramdisks made from the GUI (+ .json metadata)
 UPLOADS = OUT / "uploads"     # APKs on their way to `adb install`
 LOGS = HERE / "logs"          # job and emulator logs
+PROFILES = HERE / "start-profiles.json"   # saved emulator start options (Start options > Save)
+PROFILE_NAME_RE = re.compile(r"^[\w .()+\-]{1,40}$")
 TARGETS_JSON = ROOT / ".github" / "avd-targets.json"
 GUI_VERSION = "1.0"
 
@@ -394,24 +396,72 @@ def emulator_log_path(avd):
     return LOGS / f"emulator-{avd}.log"
 
 
-def start_emulator(avd, image=None, cold=True, kernel_log=True):
+def start_option_spec():
+    """START_OPTIONS of avd-ksu.py as JSON for the page's Start options form."""
+    spec = []
+    for key, flag, check, hlp in ak.START_OPTIONS:
+        row = {"key": key, "flag": flag, "help": hlp}
+        if check == "bool":
+            row["kind"] = "bool"
+        elif isinstance(check, tuple) and isinstance(check[0], str):
+            row.update(kind="choice", choices=list(check))
+        elif isinstance(check, tuple):
+            row.update(kind="int", min=check[0], max=check[1], step=(check + (1,))[2])
+        else:
+            row["kind"] = "text"
+        spec.append(row)
+    return spec
+
+
+def start_args(opts):
+    if not isinstance(opts, dict):
+        raise Fail("options must be an object")
+    try:
+        return ak.emulator_args(opts)
+    except ValueError as e:
+        raise Fail(str(e)) from None
+
+
+def load_profiles():
+    try:
+        data = json.loads(PROFILES.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_profile(name, opts, delete=False):
+    if not isinstance(name, str) or not PROFILE_NAME_RE.match(name):
+        raise Fail("profile name: 1-40 letters, digits, spaces or . _ - ( ) +")
+    profiles = load_profiles()
+    if delete:
+        profiles.pop(name, None)
+    else:
+        start_args(opts)                      # validate before saving
+        profiles[name] = opts
+    tmp = PROFILES.with_suffix(".tmp")
+    tmp.write_text(json.dumps(profiles, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(PROFILES)
+    return {"profiles": profiles}
+
+
+def start_emulator(avd, image=None, opts=None, dry_run=False):
     emu = tool("emulator", "emulator")
     if not emu:
         raise Fail("emulator not found (install the Android Emulator in SDK Manager)")
     cur = EMUS.get(avd)
-    if cur and cur["proc"].poll() is None:
+    if not dry_run and cur and cur["proc"].poll() is None:
         raise Fail(f"{avd} is already running (started from this page)")
-    if any(d["avd"] == avd for d in devices(0)):
+    if not dry_run and any(d["avd"] == avd for d in devices(0)):
         raise Fail(f"{avd} is already running; stop it first")
     argv = [emu, "-avd", avd]
     if image:
         if not FILE_RE.match(image) or not image.startswith(avd + "__") or not (OUT / image).is_file():
             raise Fail(f"no patched ramdisk {image!r} for {avd}")
         argv += ["-ramdisk", str(OUT / image)]
-    if cold:
-        argv.append("-no-snapshot-load")
-    if kernel_log:
-        argv.append("-show-kernel")
+    argv += start_args(opts or {})
+    if dry_run:
+        return {"avd": avd, "argv": argv, "dry_run": True}
     LOGS.mkdir(parents=True, exist_ok=True)
     log = emulator_log_path(avd)
     with open(log, "wb") as f:
@@ -463,7 +513,8 @@ def info():
             "repos": {v: repo_for(v) for v in ak.VARIANTS}, "repo_env": os.environ.get("AVD_KSU_REPO"),
             "sdk": str(sdk) if sdk else None, "avd_home": str(ak.avd_home()),
             "adb": tool("platform-tools", "adb"), "emulator": tool("emulator", "emulator"),
-            "cache": str(ak.CACHE), "out": str(OUT), "logs": str(LOGS), "targets": load_targets()}
+            "cache": str(ak.CACHE), "out": str(OUT), "logs": str(LOGS), "targets": load_targets(),
+            "start_options": start_option_spec()}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -638,8 +689,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_emulator_start(self, q):
         b = self._body()
-        return start_emulator(need_avd(b.get("avd")), b.get("image") or None,
-                              bool(b.get("cold", True)), bool(b.get("kernel_log", True)))
+        opts = b.get("options")
+        if opts is None:   # older page: two checkboxes only
+            opts = {"cold": bool(b.get("cold", True)), "show_kernel": bool(b.get("kernel_log", True))}
+        return start_emulator(need_avd(b.get("avd")), b.get("image") or None, opts, bool(b.get("dry_run")))
+
+    def api_profiles(self, q):
+        return {"profiles": load_profiles()}
+
+    def api_profile_save(self, q):
+        b = self._body()
+        return save_profile(b.get("name"), b.get("options") or {}, bool(b.get("delete")))
 
     def api_emulator_stop(self, q):
         b = self._body()
@@ -694,6 +754,8 @@ ROUTES = {
     ("GET", "/api/releases"): Handler.api_releases,
     ("GET", "/api/jobs"): Handler.api_jobs,
     ("GET", "/api/emulator/log"): Handler.api_emulator_log,
+    ("GET", "/api/start-profiles"): Handler.api_profiles,
+    ("POST", "/api/start-profiles"): Handler.api_profile_save,
     ("POST", "/api/patch"): Handler.api_patch,
     ("POST", "/api/status"): Handler.api_status,
     ("POST", "/api/restore"): Handler.api_restore,

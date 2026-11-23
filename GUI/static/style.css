@@ -133,3 +133,16 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
   .console-card, .settings { grid-column: auto; }
   .grid2 { grid-template-columns: 1fr; }
 }
+
+/* start options */
+.start-opts { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 8px 0 0; }
+.start-opts summary { cursor: pointer; font-size: 13px; font-weight: 500; padding: 2px 0; }
+.start-opts[open] summary { margin-bottom: 8px; }
+.so-group { margin: 0 0 10px; }
+.so-group h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.so-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 10px; }
+.so-grid .checks { grid-column: 1 / -1; margin: 0; }
+input[type="number"] { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+  border-radius: 7px; padding: 6px 8px; min-width: 0; width: 100%; }
+.cmd { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 10px 0 0;
+  font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

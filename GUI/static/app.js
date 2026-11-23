@@ -158,6 +158,7 @@ async function loadAvds() {
 function selectAvd(name) {
   S.sel = name;
   store.set("avd", name);
+  loadStartOptsFor(name);
   renderAvds();
   renderPanel();
 }
@@ -373,12 +374,189 @@ async function doPatch(mode) {
   } catch (e) { fail(e); return null; }
 }
 
+
+// ---------------------------------------------------------------- start options
+// Fields come from avd-ksu.py's START_OPTIONS (/api/info start_options); cold / show_kernel are
+// the two checkboxes above the panel.
+const SO_GROUPS = [
+  ["Network", ["proxy", "dns", "netspeed", "netdelay"]],
+  ["Performance", ["gpu", "memory", "cores"]],
+  ["Boot and window", ["no_snapshot_save", "no_snapshot", "wipe", "headless", "no_boot_anim", "no_audio", "writable_system"]],
+  ["Locale", ["timezone", "locale"]],
+  ["Hardware and advanced", ["camera_back", "camera_front", "partition_size", "port"]],
+];
+const SO_LABELS = {
+  proxy: "HTTP proxy", dns: "DNS servers", netspeed: "Network speed", netdelay: "Network latency",
+  gpu: "GPU mode", memory: "RAM (MB)", cores: "CPU cores", no_snapshot_save: "Don't save a snapshot on exit",
+  no_snapshot: "No Quick Boot at all", wipe: "Wipe data (factory reset)", headless: "Headless (no window)",
+  no_boot_anim: "No boot animation", no_audio: "No audio", writable_system: "Writable /system",
+  timezone: "Timezone", locale: "Locale", camera_back: "Back camera", camera_front: "Front camera",
+  partition_size: "Partition size (MB)", port: "Console port",
+};
+const SO_PLACEHOLDERS = { proxy: "http://127.0.0.1:8080", dns: "1.1.1.1,8.8.8.8", timezone: "Europe/Berlin",
+  locale: "en-US", memory: "AVD default", cores: "AVD default", partition_size: "AVD default", port: "5554" };
+const SO_DEFAULTS = { cold: true, show_kernel: true };
+const BUILTIN_PROFILES = {
+  "Default (cold boot, kernel log)": {},
+  "Quick Boot (snapshot)": { cold: false },
+  "HTTP proxy 127.0.0.1:8080 (Burp, mitmproxy)": { proxy: "http://127.0.0.1:8080" },
+  "Cloudflare DNS": { dns: "1.1.1.1,1.0.0.1" },
+  "Google DNS": { dns: "8.8.8.8,8.8.4.4" },
+  "Headless, fast boot": { headless: true, no_boot_anim: true, no_audio: true },
+  "Slow network (EDGE)": { netspeed: "edge", netdelay: "edge" },
+  "Software GPU (swiftshader)": { gpu: "swiftshader_indirect" },
+  "Factory reset (wipe data)": { wipe: true },
+};
+S.profiles = {};
+
+function soSpec() { return (S.info && S.info.start_options) || []; }
+
+function renderStartOpts() {
+  const spec = Object.fromEntries(soSpec().map((o) => [o.key, o]));
+  const body = $("start-opts-body");
+  body.replaceChildren();
+  for (const [title, keys] of SO_GROUPS) {
+    const fields = [], checks = [];
+    for (const k of keys) {
+      const o = spec[k];
+      if (!o) continue;
+      const tip = `${o.help} (${o.flag})`;
+      if (o.kind === "bool") {
+        checks.push(h("label", { title: tip }, h("input", { type: "checkbox", id: "so-" + k, onchange: onStartOptsChange }), " " + SO_LABELS[k]));
+      } else if (o.kind === "choice") {
+        fields.push(h("label", { title: tip }, SO_LABELS[k] || k,
+          h("select", { id: "so-" + k, onchange: onStartOptsChange }, h("option", { value: "" }, "AVD default"),
+            o.choices.map((c) => h("option", { value: c }, c)))));
+      } else {
+        const attrs = { id: "so-" + k, placeholder: SO_PLACEHOLDERS[k] || "", spellcheck: "false", autocomplete: "off", onchange: onStartOptsChange };
+        if (o.kind === "int") Object.assign(attrs, { type: "number", min: o.min, max: o.max, step: o.step || 1 });
+        fields.push(h("label", { title: tip }, SO_LABELS[k] || k, h("input", attrs)));
+      }
+    }
+    if (!fields.length && !checks.length) continue;
+    body.append(h("div", { class: "so-group" }, h("h4", {}, title),
+      h("div", { class: "so-grid" }, fields, checks.length ? h("div", { class: "checks" }, checks) : null)));
+  }
+  $("so-extra").onchange = onStartOptsChange;
+  $("cold").onchange = $("klog").onchange = onStartOptsChange;
+  loadStartOptsFor(S.sel);
+}
+
+function readStartOpts() {
+  const o = { cold: $("cold").checked, show_kernel: $("klog").checked };
+  for (const s of soSpec()) {
+    const el = $("so-" + s.key);
+    if (!el) continue;
+    if (s.kind === "bool") { if (el.checked) o[s.key] = true; }
+    else if (el.value.trim() !== "") o[s.key] = s.kind === "int" ? Number(el.value) : el.value.trim();
+  }
+  const extra = $("so-extra").value.trim();
+  if (extra) o.extra = extra;
+  return o;
+}
+
+function writeStartOpts(opts) {
+  const o = { ...SO_DEFAULTS, ...opts };
+  $("cold").checked = !!o.cold;
+  $("klog").checked = !!o.show_kernel;
+  for (const s of soSpec()) {
+    const el = $("so-" + s.key);
+    if (!el) continue;
+    if (s.kind === "bool") el.checked = !!o[s.key];
+    else el.value = o[s.key] ?? "";
+  }
+  $("so-extra").value = o.extra || "";
+  summarizeStartOpts();
+}
+
+function summarizeStartOpts() {
+  const o = readStartOpts();
+  const set = Object.keys(o).filter((k) => !(k in SO_DEFAULTS)).map((k) => k === "extra" ? "extra args" : (SO_LABELS[k] || k));
+  $("start-opts-sum").textContent = set.length ? "· " + set.join(", ") : "";
+}
+
+function onStartOptsChange() {
+  if (S.sel) store.set("start." + S.sel, readStartOpts());
+  store.set("start.last", readStartOpts());
+  summarizeStartOpts();
+}
+
+function loadStartOptsFor(name) {
+  if (!soSpec().length) return;
+  writeStartOpts((name && store.get("start." + name, null)) || store.get("start.last", SO_DEFAULTS));
+}
+
+function renderProfiles(selected) {
+  const sel = $("profile");
+  sel.replaceChildren(h("option", { value: "" }, "Choose a profile to apply…"),
+    h("optgroup", { label: "Built-in" }, Object.keys(BUILTIN_PROFILES).map((n) => h("option", { value: "b:" + n }, n))),
+    Object.keys(S.profiles).length
+      ? h("optgroup", { label: "Saved" }, Object.keys(S.profiles).sort().map((n) => h("option", { value: "s:" + n }, n)))
+      : null);
+  sel.value = selected || "";
+  $("profile-del").disabled = !sel.value.startsWith("s:");
+}
+
+async function loadProfiles(selected) {
+  try { S.profiles = (await api("/api/start-profiles")).profiles || {}; } catch (e) { S.profiles = {}; }
+  renderProfiles(selected);
+}
+
+function applyProfile() {
+  const v = $("profile").value;
+  $("profile-del").disabled = !v.startsWith("s:");
+  if (!v) return;
+  const opts = v.startsWith("b:") ? { ...SO_DEFAULTS, ...BUILTIN_PROFILES[v.slice(2)] } : S.profiles[v.slice(2)];
+  if (!opts) return;
+  writeStartOpts(opts);
+  onStartOptsChange();
+  $("start-opts").open = true;
+  toast(`Profile “${v.slice(2)}” applied`);
+}
+
+async function saveProfile() {
+  const cur = $("profile").value.startsWith("s:") ? $("profile").value.slice(2) : "";
+  const name = (prompt("Save these start options as:", cur) || "").trim();
+  if (!name) return;
+  try {
+    S.profiles = (await api("/api/start-profiles", { body: { name, options: readStartOpts() } })).profiles;
+    renderProfiles("s:" + name);
+    toast(`Saved profile “${name}”`);
+  } catch (e) { fail(e); }
+}
+
+async function deleteProfile() {
+  const v = $("profile").value;
+  if (!v.startsWith("s:") || !confirm(`Delete the saved profile “${v.slice(2)}”?`)) return;
+  try {
+    S.profiles = (await api("/api/start-profiles", { body: { name: v.slice(2), delete: true } })).profiles;
+    renderProfiles("");
+  } catch (e) { fail(e); }
+}
+
+function showCmd(argv) {
+  const q = (x) => /^[\w@%+=:,./\-]+$/.test(x) ? x : `"${x.replace(/(["\\$`])/g, "\\$1")}"`;
+  $("start-cmd").textContent = argv.map(q).join(" ");
+  $("start-cmd").hidden = false;
+}
+
+async function previewStart() {
+  const a = current();
+  if (!a) return;
+  try {
+    showCmd((await api("/api/emulator/start", { body: { avd: a.name, image: $("image").value || null, options: readStartOpts(), dry_run: true } })).argv);
+  } catch (e) { fail(e); }
+}
+
 async function doStart() {
   const a = current();
   try {
     const image = $("image").value || null;
     store.set("image." + a.name, image);
-    await api("/api/emulator/start", { body: { avd: a.name, image, cold: $("cold").checked, kernel_log: $("klog").checked } });
+    const options = readStartOpts();
+    if (options.wipe && !confirm(`Wipe ${a.name}'s user data (apps, accounts, the manager) before starting?`)) return;
+    const r = await api("/api/emulator/start", { body: { avd: a.name, image, options } });
+    if (r && r.argv) showCmd(r.argv);
     toast(`Starting ${a.name}${image ? " with the patched ramdisk" : ""}…`);
     pollDevices(true);
   } catch (e) { fail(e); }
@@ -515,6 +693,10 @@ function init() {
       api("/api/restore", { body: { avd: S.sel } }).then(followJob).catch(fail);
   };
   $("do-start").onclick = doStart;
+  $("do-start-preview").onclick = previewStart;
+  $("profile").onchange = applyProfile;
+  $("profile-save").onclick = saveProfile;
+  $("profile-del").onclick = deleteProfile;
   $("do-stop").onclick = doStop;
   $("do-klog").onclick = openKlog;
   $("do-del-image").onclick = doDeleteImage;
@@ -531,7 +713,8 @@ function init() {
   $("klog-markers").onchange = loadKlog;
   $("klog-dialog").addEventListener("close", () => clearInterval(klogTimer));
 
-  api("/api/info").then((i) => { S.info = i; renderEnv(); }).catch(fail);
+  api("/api/info").then((i) => { S.info = i; renderEnv(); renderStartOpts(); }).catch(fail);
+  loadProfiles();
   loadAvds();
   loadVersions();
   pollDevices();

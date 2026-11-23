@@ -91,16 +91,32 @@
           <label>Ramdisk to boot
             <select id="image"></select>
           </label>
+          <label>Start profile
+            <span class="row">
+              <select id="profile" aria-label="Start profile"></select>
+              <button class="btn ghost small" id="profile-save" title="Save the current start options under a name">Save as…</button>
+              <button class="btn ghost danger small" id="profile-del" title="Delete the selected saved profile">Delete</button>
+            </span>
+          </label>
           <div class="checks">
             <label><input type="checkbox" id="cold" checked> Cold boot (ignore the Quick Boot snapshot)</label>
             <label><input type="checkbox" id="klog" checked> Capture the kernel log</label>
           </div>
+          <details class="start-opts" id="start-opts">
+            <summary>Start options <span class="muted small" id="start-opts-sum"></span></summary>
+            <div id="start-opts-body"></div>
+            <label>Extra emulator arguments
+              <input id="so-extra" placeholder="-feature -Vulkan" spellcheck="false" autocomplete="off">
+            </label>
+          </details>
           <div class="actions">
             <button class="btn primary" id="do-start">Start</button>
+            <button class="btn ghost" id="do-start-preview" title="Show the emulator command for these options">Show command</button>
             <button class="btn ghost danger" id="do-stop">Stop</button>
             <button class="btn ghost" id="do-klog">Kernel log</button>
             <button class="btn ghost danger small" id="do-del-image" title="Delete the selected patched ramdisk">Delete image</button>
           </div>
+          <pre class="cmd" id="start-cmd" hidden></pre>
           <p class="note">Close the emulator window (or <i>Stop</i>) instead of rebooting inside Android.</p>
         </fieldset>
 

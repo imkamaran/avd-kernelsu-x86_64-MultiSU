@@ -2,3 +2,5 @@
 out/
 logs/
 __pycache__/
+start-profiles.json
+start-profiles.tmp

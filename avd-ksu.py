@@ -10,6 +10,8 @@ this repository's GitHub Releases, together with host ksud binaries.
   python avd-ksu.py restore --avd <name>
   python avd-ksu.py status --avd <name>
   python avd-ksu.py susfs  [--serial emulator-5554] [--version V] [--legacy] [--remove]   (kernelsu-next-susfs only)
+  python avd-ksu.py start  --avd <name> [--ramdisk fina.img] [--proxy http://127.0.0.1:8080] [--dns 1.1.1.1]
+                           [--cold] [--headless] [--gpu MODE] [--memory MB] ... [-- extra emulator args]
   python avd-ksu.py ksud   [--serial S] [--variant kernelsu-next|kernelsu-next-susfs] [--version V]  (16 KB images)
 
 Standard library only. Python 3.8+.
@@ -20,6 +22,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import stat
 import struct
@@ -523,6 +526,124 @@ echo "susfs version: $(/data/adb/ksud susfs version) ($(/data/adb/ksud susfs var
           "Remove with: python avd-ksu.py susfs --remove")
 
 
+# ---------------------------------------------------------------- emulator start options
+# One table for `avd-ksu.py start` and the GUI: key, emulator flag, value check, help.
+# Value checks: "bool" (flag only), a tuple of choices, (lo, hi[, step]) ints, or a regex.
+_HOST = r"(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?)"
+PROXY_RE = re.compile(rf"^(?:https?://)?(?:[^\s@/:]+(?::[^\s@/]*)?@)?{_HOST}:\d{{1,5}}$")
+_DNS = rf"(?:{_HOST}|[0-9A-Fa-f]{{0,4}}(?::[0-9A-Fa-f]{{0,4}}){{2,7}})"   # host, IPv4 or plain IPv6
+DNS_RE = re.compile(rf"^{_DNS}(?:,{_DNS}){{0,3}}$")
+START_OPTIONS = [
+    ("cold", "-no-snapshot-load", "bool", "cold boot: do not load the Quick Boot snapshot"),
+    ("no_snapshot_save", "-no-snapshot-save", "bool", "do not save a Quick Boot snapshot on exit"),
+    ("no_snapshot", "-no-snapshot", "bool", "no Quick Boot snapshot at all (neither load nor save)"),
+    ("wipe", "-wipe-data", "bool", "wipe the AVD's user data first (factory reset)"),
+    ("headless", "-no-window", "bool", "run without the emulator window"),
+    ("show_kernel", "-show-kernel", "bool", "print the kernel log to the console"),
+    ("no_boot_anim", "-no-boot-anim", "bool", "skip the boot animation (boots faster)"),
+    ("no_audio", "-no-audio", "bool", "disable audio"),
+    ("writable_system", "-writable-system", "bool", "writable /system image (needs `adb root`: not on Play Store images)"),
+    ("proxy", "-http-proxy", PROXY_RE, "HTTP proxy for all guest traffic, http://[user:pass@]host:port "
+                                       "(as seen from this computer, e.g. http://127.0.0.1:8080)"),
+    ("dns", "-dns-server", DNS_RE, "DNS servers for the guest, comma-separated (up to 4), e.g. 1.1.1.1,8.8.8.8"),
+    ("netspeed", "-netspeed", ("full", "lte", "evdo", "hsdpa", "umts", "edge", "gprs", "gsm", "hscsd", "tdma"),
+     "network speed"),
+    ("netdelay", "-netdelay", ("none", "lte", "evdo", "umts", "edge", "gprs", "gsm"), "network latency"),
+    ("gpu", "-gpu", ("auto", "host", "swiftshader_indirect", "angle_indirect", "guest"), "GPU emulation mode"),
+    ("memory", "-memory", (512, 65536), "guest RAM in MB (overrides the AVD's setting)"),
+    ("cores", "-cores", (1, 64), "number of guest CPU cores"),
+    ("partition_size", "-partition-size", (800, 262144), "system/data partition size in MB"),
+    ("timezone", "-timezone", re.compile(r"^[A-Za-z]+(?:/[A-Za-z0-9_+\-]+){0,2}$"), "guest timezone, e.g. Europe/Berlin"),
+    ("locale", "-change-locale", re.compile(r"^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2}|-\d{3})?$"),
+     "guest locale, e.g. en-US (applies on a cold boot)"),
+    ("camera_back", "-camera-back", ("emulated", "virtualscene", "webcam0", "none"), "back camera"),
+    ("camera_front", "-camera-front", ("emulated", "webcam0", "none"), "front camera"),
+    ("port", "-port", (5554, 5682, 2), "console port (even, 5554-5682); adb serial is emulator-<port>"),
+]
+
+
+def emulator_args(opts):
+    """Emulator arguments for a dict of START_OPTIONS keys (plus "extra": a string or list of
+    extra emulator arguments). Raises ValueError for an unknown key or a bad value."""
+    out, known = [], {k for k, *_ in START_OPTIONS} | {"extra"}
+    unknown = set(opts) - known
+    if unknown:
+        raise ValueError(f"unknown start option(s): {', '.join(sorted(unknown))}")
+    for key, flag, check, _ in START_OPTIONS:
+        v = opts.get(key)
+        if v in (None, "", False):
+            continue
+        if check == "bool":
+            if v is not True:
+                raise ValueError(f"{key}: expected true/false")
+            out.append(flag)
+            continue
+        if isinstance(check, tuple) and isinstance(check[0], str):
+            if v not in check:
+                raise ValueError(f"{key}: {v!r} is not one of {', '.join(check)}")
+        elif isinstance(check, tuple):
+            try:
+                n = int(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{key}: expected a number") from None
+            lo, hi, step = (check + (1,))[:3]
+            if not lo <= n <= hi or (n - lo) % step:
+                raise ValueError(f"{key}: {n} is out of range {lo}-{hi}" + (" (even)" if step == 2 else ""))
+            v = n
+        elif not isinstance(v, str) or not check.match(v.strip()):
+            raise ValueError(f"{key}: bad value {v!r}")
+        out += [flag, str(v).strip()]
+    extra = opts.get("extra") or []
+    if isinstance(extra, str):
+        extra = shlex.split(extra, posix=os.name != "nt")
+    if not isinstance(extra, list) or not all(isinstance(x, str) for x in extra):
+        raise ValueError("extra: expected emulator arguments")
+    for bad in ("-avd", "-ramdisk", "-kernel", "-qemu"):
+        if bad in extra:
+            raise ValueError(f"extra: {bad} is not allowed here")
+    return out + extra
+
+
+def emulator_exe():
+    exe = sdk_root() / "emulator" / ("emulator.exe" if os.name == "nt" else "emulator")
+    if not exe.exists():
+        die(f"{exe} not found: install the Android Emulator in SDK Manager")
+    return exe
+
+
+def cmd_start(a):
+    """Start an AVD with the patched ramdisk (optional) and the chosen START_OPTIONS."""
+    if a.avd not in list_avds():
+        die(f"AVD {a.avd!r} not found in {avd_home()}; known: {', '.join(list_avds())}")
+    opts = {k: getattr(a, k) for k, *_ in START_OPTIONS}
+    opts["extra"] = a.extra[1:] if a.extra[:1] == ["--"] else a.extra
+    try:
+        args = emulator_args(opts)
+    except ValueError as e:
+        die(str(e))
+    argv = [str(emulator_exe()), "-avd", a.avd]
+    if a.ramdisk:
+        rd = Path(a.ramdisk)
+        if not rd.is_file():
+            die(f"{rd} not found")
+        argv += ["-ramdisk", str(rd.resolve())]
+    argv += args
+    print("$ " + " ".join(shlex.quote(x) for x in argv))
+    if a.dry_run:
+        return
+    if a.detach:
+        kw = {"start_new_session": True} if os.name != "nt" else \
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0)}
+        p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, **kw)
+        print(f"started (pid {p.pid})")
+        return
+    try:
+        sys.exit(subprocess.call(argv))
+    except KeyboardInterrupt:
+        sys.exit(130)
+
+
 def cmd_restore(a):
     img = resolve_image(a)
     backup = img / ("ramdisk.img" + STOCK_SUFFIX)
@@ -551,6 +672,22 @@ def main():
             p.add_argument("--assets-dir", help=argparse.SUPPRESS)  # local release assets (testing)
             p.add_argument("--ko", help=argparse.SUPPRESS)
             p.add_argument("--ksud", help=argparse.SUPPRESS)
+    p = sub.add_parser("start", help="start an AVD, optionally with a patched ramdisk, a proxy, DNS servers ...",
+                       description="Start an AVD with the emulator. Any emulator option not listed here "
+                                   "can follow `--`, e.g. ... -- -camera-back webcam0.")
+    p.add_argument("--avd", required=True, help="AVD name (see `list`)")
+    p.add_argument("--ramdisk", help="patched ramdisk to boot (patch --out), e.g. fina.img")
+    for key, flag, check, hlp in START_OPTIONS:
+        opt = "--" + key.replace("_", "-")
+        if check == "bool":
+            p.add_argument(opt, action="store_true", help=f"{hlp} ({flag})")
+        elif isinstance(check, tuple) and isinstance(check[0], str):
+            p.add_argument(opt, choices=check, help=f"{hlp} ({flag})")
+        else:
+            p.add_argument(opt, metavar=key.upper(), help=f"{hlp} ({flag})")
+    p.add_argument("--detach", action="store_true", help="start in the background and return")
+    p.add_argument("--dry-run", action="store_true", help="print the emulator command only")
+    p.add_argument("extra", nargs=argparse.REMAINDER, help="-- then extra emulator arguments")
     p = sub.add_parser("ksud", help="install the release's 16 KB aligned ksud on a running KernelSU-Next AVD "
                                     "(16 KB page-size images)")
     p.add_argument("--serial", help="adb serial, e.g. emulator-5554 (default: the only device)")
@@ -571,7 +708,7 @@ def main():
     p.add_argument("--ko", help=argparse.SUPPRESS)
     a = ap.parse_args()
     {"list": cmd_list, "patch": cmd_patch, "restore": cmd_restore, "status": cmd_status,
-     "susfs": cmd_susfs, "ksud": cmd_ksud}[a.cmd](a)
+     "susfs": cmd_susfs, "ksud": cmd_ksud, "start": cmd_start}[a.cmd](a)
 
 
 if __name__ == "__main__":
