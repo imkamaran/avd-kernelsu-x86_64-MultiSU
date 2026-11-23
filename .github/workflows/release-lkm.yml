@@ -193,13 +193,17 @@ jobs:
               echo
               echo "- A15, A16, A16 QPR and A17 (API 35, 36.0, 36.1, 37.0): root, SUSFS loading and hiding all work in testing."
               echo "- A13 and A14 (API 33, 34): root and SUSFS load, but hiding is partial: \`O_PATH\` opens, \`mkdir\` and directory listings still reveal a hidden path (no IBT landing pads for SUSFS's opath, kstat and create hooks on these kernels)."
-              echo "- 16 KB page-size images (API 35, 36.0, 37.1, 37.2 \`_ps16k\`): no root. The attached manager's \`libksud.so\` is 4 KB aligned, so \`/data/adb/ksud\` is never installed; the AVD still boots."
+              echo "- 16 KB page-size images (API 35, 36.0, 37.1, 37.2 \`_ps16k\`): the attached manager's \`libksud.so\` is 4 KB aligned and cannot install \`/data/adb/ksud\`. After the first boot run \`python avd-ksu.py ksud --variant ${VARIANT} --version ${V}\` (installs the attached 16 KB aligned \`ksud-*-x86_64-linux-android\`), cold-boot again, then install SUSFS as above."
               echo "- Preview builds from a fork branch: not reviewed upstream. See the [README](https://github.com/$GITHUB_REPOSITORY#preview-kernelsu-next--susfs-kernelsu-next-susfs)."
             else
               if [ "$VARIANT" = bakasu ]; then
                 echo "Install the matching BakaSU ${V} manager APK (\`*-x86_64-release.apk\`) from the upstream release [$UP@$V](https://github.com/$UP/releases/tag/$V). The module also trusts the official KernelSU manager (multi-manager support)."
               else
                 echo "Install the matching ${VARIANT} ${V} manager APK from the upstream release."
+              fi
+              if [ "$VARIANT" = kernelsu-next ]; then
+                echo
+                echo "16 KB page-size images: the manager's \`libksud.so\` cannot run there, so after the first boot run \`python avd-ksu.py ksud --version ${V}\` (installs the attached 16 KB aligned \`ksud-kernelsu-next-${V}-x86_64-linux-android\` as \`/data/adb/ksud\`) and cold-boot again. \`patch\` enables \`--allow-shell\` on these images for that step."
               fi
             fi
             echo
