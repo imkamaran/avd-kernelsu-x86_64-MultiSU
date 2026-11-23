@@ -9,13 +9,13 @@ on:
       variant:
         description: KernelSU project
         type: choice
-        options: [kernelsu, kernelsu-next, kernelsu-next-susfs, finasu]
+        options: [kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, bakasu]
         default: kernelsu
       ref:
         # No default: each project uses its own tags (kernelsu v3.3.1, kernelsu-next v3.4.2,
-        # finasu v1.6.4). kernelsu-next-susfs builds a branch of the KernelSU-Next fork in the
+        # finasu v1.7.0, bakasu v4.2.0-rc3). kernelsu-next-susfs builds a branch of the KernelSU-Next fork in the
         # SUSFS_FORK repository variable, default leemikepop/KernelSU-Next (e.g. susfs-x64-avd).
-        description: Upstream tag, branch or commit (e.g. v3.3.1 for kernelsu, v3.4.2 for kernelsu-next, v1.6.4 for finasu, susfs-x64-avd for kernelsu-next-susfs)
+        description: Upstream tag, branch or commit (e.g. v3.3.1 for kernelsu, v3.4.2 for kernelsu-next, v1.7.0 for finasu, v4.2.0-rc3 for bakasu, susfs-x64-avd for kernelsu-next-susfs)
         required: true
       target:
         description: Target id from avd-targets.json, or "all"
@@ -60,6 +60,8 @@ jobs:
             kernelsu-next-susfs) echo "upstream=${{ vars.SUSFS_FORK || 'leemikepop/KernelSU-Next' }}" >> "$GITHUB_OUTPUT" ;;
             # FinaSU: a KernelSU fork with its own ksud/ksuinit (built from source, like kernelsu-next).
             finasu) echo "upstream=LyraVoid/FinaSU" >> "$GITHUB_OUTPUT" ;;
+            # BakaSU (formerly ReSukiSU): a KernelSU downstream, ksud/ksuinit built from source too.
+            bakasu) echo "upstream=Baka-SU/BakaSU" >> "$GITHUB_OUTPUT" ;;
             *) echo "unknown variant $VARIANT"; exit 1 ;;
           esac
           m=$(jq -c --arg t "$TARGET" '[.targets[] | select($t == "all" or .id == $t) | {id, kmi}]' .github/avd-targets.json)
@@ -125,6 +127,12 @@ jobs:
           fi
           echo "trusted FinaSU manager certificate: size=$size sha256=$hash"
           echo "KSU_MAKE_ARGS=KSU_EXPECTED_SIZE2=$size KSU_EXPECTED_HASH2=$hash KSU_SECOND_SIGNATURE_RELEASE=1" >> "$GITHUB_ENV"
+      # BakaSU's Kbuild reads its hook mode and manager list from CONFIG_ symbols that an
+      # out-of-tree build does not get from Kconfig: pass the ones its own DDK workflow passes
+      # (tracepoint hook; multi-manager = also trust the official KernelSU manager).
+      - name: Build options (bakasu)
+        if: (inputs.variant || 'kernelsu') == 'bakasu'
+        run: echo "KSU_MAKE_ARGS=CONFIG_KSU_TRACEPOINT_HOOK=y CONFIG_KSU_MULTI_MANAGER_SUPPORT=y" >> "$GITHUB_ENV"
       - name: Build kernelsu.ko
         run: |
           bash scripts/build-target.sh "${{ matrix.target.id }}" "${{ inputs.variant || 'kernelsu' }}" \

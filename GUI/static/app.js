@@ -28,7 +28,13 @@ const VARIANTS = {
     label: "FinaSU",
     manager: (v) => `https://github.com/LyraVoid/FinaSU/releases/tag/${v}`,
     note: "FinaSU: KernelSU fork with FolkZygisk, Sui and SUSFS support. Install the FinaSU manager of the same version. Tested on Android 17 (API 37.0).",
-    ok16k: null,
+    ok16k: true,
+  },
+  bakasu: {
+    label: "BakaSU",
+    manager: (v) => `https://github.com/Baka-SU/BakaSU/releases/tag/${v}`,
+    note: "BakaSU (formerly ReSukiSU): KernelSU downstream with a built-in SUSFS tool and multi-manager support. Install the BakaSU manager of the same version (the x86_64 or universal APK); the official KernelSU manager also works.",
+    ok16k: true,
   },
 };
 
@@ -234,7 +240,6 @@ function updateNotes() {
   const warn = [];
   if (a && !a.target && !a.error) warn.push(`No prebuilt module for kernel ${a.kernel}. Update the system image in SDK Manager (Google Play x86_64), or pick another AVD.`);
   if (a && a.page_kb === 16 && info.ok16k === false) warn.push(`This is a 16 KB page-size image: ${info.label} root does not activate here${v === "kernelsu-next-susfs" ? " (patching it needs Force)" : ""}. KernelSU works on 16 KB images.`);
-  if (a && a.page_kb === 16 && v === "finasu") warn.push("FinaSU on 16 KB images: the boot-loop fix is in, but root has not been re-tested on these images yet.");
   $("patch-warn").hidden = !warn.length;
   $("patch-warn").textContent = warn.join(" ");
 }

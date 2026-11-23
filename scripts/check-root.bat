@@ -5,7 +5,7 @@ rem Patch an AVD with avd-ksu.py into a separate ramdisk (fina.img next to this 
 rem not touched), cold boot it without a Quick Boot snapshot, and collect root diagnostics in
 rem check-root.log and boot-kernel.log next to this file.
 rem   avd-name  default: asked (the AVDs are listed first)
-rem   variant   default: finasu   (kernelsu, kernelsu-next, kernelsu-next-susfs, finasu)
+rem   variant   default: finasu   (kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, bakasu)
 rem   version   default: the newest release of the variant
 rem Needs Python on PATH and the Android SDK in %LOCALAPPDATA%\Android\Sdk (or ANDROID_SDK_ROOT).
 
@@ -97,6 +97,7 @@ call :hdr "manager packages installed"
 "%ADB%" shell pm list packages me.yuki.fina >> "%LOG%" 2>&1
 "%ADB%" shell pm list packages me.weishu.kernelsu >> "%LOG%" 2>&1
 "%ADB%" shell pm list packages com.rifsxd.ksunext >> "%LOG%" 2>&1
+"%ADB%" shell pm list packages com.resukisu.resukisu >> "%LOG%" 2>&1
 
 call :hdr "uname -a (always the stock kernel: only a module is added)"
 "%ADB%" shell uname -a >> "%LOG%" 2>&1

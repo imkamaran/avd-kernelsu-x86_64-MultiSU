@@ -12,10 +12,10 @@ on:
       variant:
         description: KernelSU project
         type: choice
-        options: [kernelsu, kernelsu-next, kernelsu-next-susfs, finasu]
+        options: [kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, bakasu]
         default: kernelsu
       version:
-        description: Upstream release tag (vX.Y.Z, e.g. v1.6.4 for finasu); for kernelsu-next-susfs the fork branch or commit (e.g. susfs-x64-avd)
+        description: Upstream release tag (vX.Y.Z or vX.Y.Z-rcN, e.g. v1.7.0 for finasu, v4.2.0-rc3 for bakasu); for kernelsu-next-susfs the fork branch or commit (e.g. susfs-x64-avd)
         required: true
       prerelease:
         type: boolean
@@ -59,7 +59,7 @@ jobs:
             echo "ref=$sha" >> "$GITHUB_OUTPUT"; echo "version=$ver" >> "$GITHUB_OUTPUT"; echo "base=$base" >> "$GITHUB_OUTPUT"
             echo "fork $VERSION = $sha -> $ver (upstream dev base $base)"
           else
-            [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v3.3.1"; exit 1; }
+            [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] || { echo "::error::version must look like v3.3.1 or v4.2.0-rc3"; exit 1; }
             echo "ref=$VERSION" >> "$GITHUB_OUTPUT"; echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           fi
 
@@ -157,6 +157,7 @@ jobs:
             kernelsu-next) UP=KernelSU-Next/KernelSU-Next; TOOLS="built unmodified from" ;;
             kernelsu-next-susfs) UP=$FORK; TOOLS="built from" ;;
             finasu) UP=LyraVoid/FinaSU; TOOLS="built unmodified from" ;;
+            bakasu) UP=Baka-SU/BakaSU; TOOLS="built unmodified from" ;;
           esac
           UP_SHA=$(gh api "repos/$UP/commits/$REF" --jq .sha)
           REPO="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
@@ -195,7 +196,11 @@ jobs:
               echo "- 16 KB page-size images (API 35, 36.0, 37.1, 37.2 \`_ps16k\`): no root. The attached manager's \`libksud.so\` is 4 KB aligned, so \`/data/adb/ksud\` is never installed; the AVD still boots."
               echo "- Preview builds from a fork branch: not reviewed upstream. See the [README](https://github.com/$GITHUB_REPOSITORY#preview-kernelsu-next--susfs-kernelsu-next-susfs)."
             else
-              echo "Install the matching ${VARIANT} ${V} manager APK from the upstream release."
+              if [ "$VARIANT" = bakasu ]; then
+                echo "Install the matching BakaSU ${V} manager APK (\`*-x86_64-release.apk\`) from the upstream release [$UP@$V](https://github.com/$UP/releases/tag/$V). The module also trusts the official KernelSU manager (multi-manager support)."
+              else
+                echo "Install the matching ${VARIANT} ${V} manager APK from the upstream release."
+              fi
             fi
             echo
             echo "### Sources and licenses"
@@ -216,7 +221,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.variant }}-${{ needs.check.outputs.version }}
-          PRERELEASE: ${{ inputs.prerelease || inputs.variant == 'kernelsu-next-susfs' }}
+          # Upstream release candidates (vX.Y.Z-rcN) are published as pre-releases too.
+          PRERELEASE: ${{ inputs.prerelease || inputs.variant == 'kernelsu-next-susfs' || contains(needs.check.outputs.version, '-rc') }}
           RECREATE: ${{ inputs.recreate }}
         run: |
           flags=(); [ "$PRERELEASE" = true ] && flags+=(--prerelease)

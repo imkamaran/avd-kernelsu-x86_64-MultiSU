@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""avd-ksu: root a stock Android Studio AVD (x86_64) with KernelSU / KernelSU-Next LKM.
+"""avd-ksu: root a stock Android Studio AVD (x86_64) with KernelSU, KernelSU-Next, FinaSU or BakaSU (LKM).
 
 Only the system image's ramdisk.img is patched; the kernel stays stock. The kernelsu.ko
 for each AVD kernel is built in CI against that kernel's exact source and published in
 this repository's GitHub Releases, together with host ksud binaries.
 
   python avd-ksu.py list
-  python avd-ksu.py patch  --avd <name> [--variant kernelsu|kernelsu-next|kernelsu-next-susfs|finasu] [--version vX.Y.Z]
+  python avd-ksu.py patch  --avd <name> [--variant kernelsu|kernelsu-next|kernelsu-next-susfs|finasu|bakasu] [--version vX.Y.Z]
   python avd-ksu.py restore --avd <name>
   python avd-ksu.py status --avd <name>
   python avd-ksu.py susfs  [--serial emulator-5554] [--version V] [--legacy] [--remove]   (kernelsu-next-susfs only)
@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 REPO_DEFAULT = "imkamaran/avd-kernelsu-x86_64-MultiSU"   # releases of every variant
-VARIANTS = ("kernelsu", "kernelsu-next", "kernelsu-next-susfs", "finasu")
+VARIANTS = ("kernelsu", "kernelsu-next", "kernelsu-next-susfs", "finasu", "bakasu")
 SUSFS_VARIANT = "kernelsu-next-susfs"   # preview: KernelSU-Next fork + the SUSFS guard LKM
 SUSFS_MODULE_ID = "susfs_guard_lkm_avd"   # the release's susfs-module-*.zip (susfs-module/)
 SUSFS_KO = "/data/adb/susfs_guard_lkm.ko"                    # --legacy install
@@ -115,9 +115,19 @@ def http_json(url):
         return json.load(r)
 
 
+VERSION_RE = r"v\d+(?:\.\d+)*(?:-rc\d+|-\d+-g[0-9a-f]+)?"   # v3.3.1, v4.2.0-rc3, v3.4.2-110-g2eed7e95
+
+
 def version_key(ver):
-    """'v3.4.2' -> (3, 4, 2); non-numeric parts sort first."""
-    return tuple(int(p) if p.isdigit() else -1 for p in re.split(r"[.\-]", ver.lstrip("v")))
+    """Sort key: 'v4.2.0-rc3' < 'v4.2.0' < 'v4.2.0-5-gabc' (commits after the tag) < 'v4.2.1'."""
+    m = re.match(r"v?(\d+(?:\.\d+)*)(.*)", ver)
+    if not m:
+        return ((), (-1,))
+    main = tuple(int(p) for p in m.group(1).split("."))
+    rest = m.group(2)
+    rc, after = re.match(r"-rc(\d+)$", rest), re.match(r"-(\d+)", rest)
+    tail = (1, 0) if not rest else (0, int(rc.group(1))) if rc else (1, int(after.group(1))) if after else (-1,)
+    return main, tail
 
 
 def repo_for(variant):
@@ -177,8 +187,9 @@ class Assets:
 
     def _guess_version(self, variant):
         for n in self.files:
-            if n.startswith(f"ksud-{variant}-v"):
-                return n[len(f"ksud-{variant}-"):].split("-")[0]
+            m = re.match(rf"ksud-{re.escape(variant)}-({VERSION_RE})-", n)
+            if m:
+                return m.group(1)
         die("cannot determine version from --assets-dir; pass --version")
 
     def _download(self, name, path):
@@ -216,6 +227,8 @@ class Assets:
 def manager_name(variant):
     if variant == "finasu":
         return "FinaSU"
+    if variant == "bakasu":
+        return "BakaSU"
     return "KernelSU" if variant == "kernelsu" else "KernelSU Next"
 
 

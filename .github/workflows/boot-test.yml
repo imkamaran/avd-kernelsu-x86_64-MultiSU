@@ -9,7 +9,7 @@ on:
       variant:
         description: Variant to test, or "all" (each at its latest release)
         type: choice
-        options: [all, kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, stock]
+        options: [all, kernelsu, kernelsu-next, kernelsu-next-susfs, finasu, bakasu, stock]
         default: all
       version:
         description: Release version to test (single variant only; default the latest release)
@@ -40,7 +40,7 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           TARGET: ${{ inputs.target }}
         run: |
-          if [ "$VARIANT" = all ]; then v='["kernelsu","kernelsu-next","kernelsu-next-susfs","finasu"]'
+          if [ "$VARIANT" = all ]; then v='["kernelsu","kernelsu-next","kernelsu-next-susfs","finasu","bakasu"]'
           else v="[\"$VARIANT\"]"; fi
           m=$(jq -c --argjson v "$v" --arg t "$TARGET" \
             '($t | split(",") | map(gsub("^ +| +$"; ""))) as $ts | {include: [.targets[] | select($t == "all" or (.id | IN($ts[]))) | .id as $id | $v[] | {target: $id, variant: .}]}' \

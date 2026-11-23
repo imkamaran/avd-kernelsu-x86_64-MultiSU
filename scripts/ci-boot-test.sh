@@ -177,6 +177,7 @@ case $VARIANT in
   kernelsu) gh release download "$VER" -R tiann/KernelSU -p '*.apk' -D "$OUT/mgr" ;;
   kernelsu-next) gh release download "$VER" -R KernelSU-Next/KernelSU-Next -p '*.apk' -D "$OUT/mgr" ;;
   finasu) gh release download "$VER" -R LyraVoid/FinaSU -p '*.apk' -D "$OUT/mgr" ;;
+  bakasu) gh release download "$VER" -R Baka-SU/BakaSU -p '*.apk' -D "$OUT/mgr" ;;
   kernelsu-next-susfs) gh release download "$TAG_REL" -R "$REPO" -p '*.apk' -D "$OUT/mgr" ;;
 esac
 apks=$(find "$OUT/mgr" -name '*.apk' | grep -vi debug | sort || true)

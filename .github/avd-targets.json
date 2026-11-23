@@ -22,6 +22,9 @@
         ],
         "finasu": [
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "x86_64-seccomp-skip.patch"
         ]
       }
     },
@@ -45,6 +48,9 @@
         ],
         "finasu": [
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "x86_64-seccomp-skip.patch"
         ]
       }
     },
@@ -71,6 +77,10 @@
         ],
         "finasu": [
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "x86_64-seccomp-skip.patch",
+          "x86_64-do_syscall_64-fallback.patch"
         ]
       }
     },
@@ -94,6 +104,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -117,6 +130,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -140,6 +156,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -163,6 +182,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -186,6 +208,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -209,6 +234,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     },
@@ -232,6 +260,9 @@
           "finasu-x86_64-kcfi-icall-trampoline.patch",
           "finasu-x86_64-kcfi-icall-v1.6.patch",
           "finasu-preinit-runner-16k-pages.patch"
+        ],
+        "bakasu": [
+          "bakasu-x86_64-kcfi-icall-trampoline.patch"
         ]
       }
     }
