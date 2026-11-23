@@ -245,5 +245,11 @@ jobs:
             gh release upload "$TAG" release/* --clobber
             gh release edit "$TAG" --notes-file notes.md --prerelease="$PRERELEASE"
           else
-            gh release create "$TAG" release/* --title "$TAG" --notes-file notes.md --target "$GITHUB_SHA" "${flags[@]}"
+            # GitHub refuses (403) a GITHUB_TOKEN tag on a commit whose workflow files differ from
+            # the default branch, e.g. when main moved on during the build. Fall back to tagging
+            # the branch head, so a recreated release is never left deleted.
+            gh release create "$TAG" release/* --title "$TAG" --notes-file notes.md --target "$GITHUB_SHA" "${flags[@]}" \
+              || { echo "::warning::could not tag $GITHUB_SHA; tagging $GITHUB_REF_NAME's head instead"
+                   gh release view "$TAG" >/dev/null 2>&1 && gh release delete "$TAG" --yes
+                   gh release create "$TAG" release/* --title "$TAG" --notes-file notes.md --target "$GITHUB_REF_NAME" "${flags[@]}"; }
           fi
