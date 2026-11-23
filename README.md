@@ -411,38 +411,40 @@ chosen variant and version) on every target under KVM, with
 [`scripts/ci-boot-test.sh`](scripts/ci-boot-test.sh): it unpacks the target's exact Google system image
 into a throwaway AVD, patches it with `avd-ksu.py` from the release (as a user would, plus
 `--allow-shell`), then follows the README's steps. Boot 1 (fresh data) installs and opens the official
-manager APK; boot 2 (cold restart) checks:
+manager APK (and on 16 KB images runs `avd-ksu.py ksud` for KernelSU-Next); boot 2 (cold restart)
+checks:
 
 | Check | Pass means |
 | :--- | :--- |
 | Boot | both boots reach `sys.boot_completed=1` (no boot loop or panic) |
 | Root | `su -c id` from `adb shell` gives `uid=0` |
-| Manager | the manager installed `/data/adb/ksud` (it only does so when the module trusts its signature) |
+| Manager | `/data/adb/ksud` is installed and runs (the manager installs it only when the module trusts its signature; on 16 KB images `avd-ksu.py ksud` does) |
 | SUSFS | `kernelsu-next-susfs` only: `avd-ksu.py susfs` installs and loads the SUSFS module |
 
-Documented limitations (KernelSU-Next's manager on 16 KB images) are reported as *known* instead of
-failing.
+A documented limitation would be reported as *known* instead of failing; none is left. Releases'
+scripts can be refreshed without a rebuild with **Update release scripts** (`update-release-scripts.yml`).
 
-Last run (2026-11-22, latest releases: `kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`,
-`kernelsu-next-susfs-v3.4.2-110-g2eed7e95`, `finasu-v1.7.0`): **40 of 40 combinations pass** every check
-that applies, the only exceptions being the documented KernelSU-Next 16 KB limitation (known).
+Last run (2026-11-23, the published releases `kernelsu-v3.3.1`, `kernelsu-next-v3.4.2`,
+`kernelsu-next-susfs-v3.4.2-110-g2eed7e95`, `finasu-v1.7.0`, `bakasu-v4.2.0-rc3`): **50 of 50
+combinations pass** every check that applies.
 
-| Target | `kernelsu` | `kernelsu-next` | `kernelsu-next-susfs` | `finasu` |
-| :--- | :---: | :---: | :---: | :---: |
-| `a13-api33-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a13-api33-ext4-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a14-api34-6.1` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a15-api35-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a15-api35-ext15-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a16-api36.0-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a16-api36.0-16k-6.6` (16 KB) | ✅ | boots, ⚠️ known | boots, ⚠️ known | ✅ |
-| `a16-api36.1-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a17-api37.0-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ |
-| `a17-api37.1-6.12` (16 KB) | ✅ | boots, ⚠️ known | boots, ⚠️ known | ✅ |
+| Target | `kernelsu` | `kernelsu-next` | `kernelsu-next-susfs` | `finasu` | `bakasu` |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `a13-api33-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a13-api33-ext4-5.15` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a14-api34-6.1` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a15-api35-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a15-api35-ext15-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a16-api36.0-6.6` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a16-api36.0-16k-6.6` (16 KB) | ✅ | ✅ ¹ | ✅ (+SUSFS) ¹ | ✅ | ✅ |
+| `a16-api36.1-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a17-api37.0-6.12` | ✅ | ✅ | ✅ (+SUSFS) | ✅ | ✅ |
+| `a17-api37.1-6.12` (16 KB) | ✅ | ✅ ¹ | ✅ (+SUSFS) ¹ | ✅ | ✅ |
 
-✅ = boot, root and manager pass (and SUSFS loads for the preview). The SUSFS check only covers
-loading; partial hiding on A13/A14 is described under
-[Preview](#preview-kernelsu-next--susfs-kernelsu-next-susfs). The `stock` variant boots the unpatched images, as a baseline for the harness. A second job,
+✅ = boot, root and manager pass (and SUSFS loads for the preview). ¹ with the 16 KB step:
+`avd-ksu.py ksud` after the first boot installs the release's 16 KB aligned ksud, since the
+KernelSU-Next manager's own cannot run there. The SUSFS check only covers loading; partial hiding on
+A13/A14 is described under [Preview](#preview-kernelsu-next--susfs-kernelsu-next-susfs). The `stock` variant boots the unpatched images, as a baseline for the harness. A second job,
 [`scripts/check_images.py`](scripts/check_images.py), lists Google's current x86_64 Play Store images
 (API 33+), reads each one's kernel string over HTTP range requests and fails when a kernel has no target.
 
